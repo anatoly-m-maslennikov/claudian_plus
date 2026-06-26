@@ -3,8 +3,11 @@ import { Notice, setIcon } from 'obsidian';
 import type { TodoItem } from '../../../core/tools/todo';
 import { getToolIcon } from '../../../core/tools/toolIcons';
 import { TOOL_TODO_WRITE } from '../../../core/tools/toolNames';
+import type { SessionUsageLedger } from '../../../core/types';
 import { t } from '../../../i18n/i18n';
 import { renderTodoItems } from '../rendering/todoUtils';
+import { SessionUsageService } from '../services/SessionUsageService';
+import { formatSessionUsage } from '../utils/sessionUsageFormat';
 
 export interface PanelBashOutput {
   id: string;
@@ -37,6 +40,11 @@ export class StatusPanel {
   private todoContentEl: HTMLElement | null = null;
   private isTodoExpanded = false;
   private currentTodos: TodoItem[] | null = null;
+
+  // Session usage section
+  private sessionUsageContainerEl: HTMLElement | null = null;
+  private sessionUsageContentEl: HTMLElement | null = null;
+  private currentSessionUsage: SessionUsageLedger | null = null;
 
   // Event handler references for cleanup
   private todoClickHandler: (() => void) | null = null;
@@ -98,12 +106,17 @@ export class StatusPanel {
     this.todoContainerEl = null;
     this.todoHeaderEl = null;
     this.todoContentEl = null;
+    this.sessionUsageContainerEl = null;
+    this.sessionUsageContentEl = null;
     this.createPanel();
 
     // Re-render current state
     this.renderBashOutputs();
     if (this.currentTodos && this.currentTodos.length > 0) {
       this.updateTodos(this.currentTodos);
+    }
+    if (this.currentSessionUsage) {
+      this.renderSessionUsage(this.currentSessionUsage);
     }
   }
 
@@ -175,6 +188,16 @@ export class StatusPanel {
     this.todoContentEl.className = 'claudian-status-panel-content claudian-todo-list-container claudian-hidden';
     this.todoContainerEl.appendChild(this.todoContentEl);
 
+    // Session usage container - hidden by default
+    this.sessionUsageContainerEl = ownerDocument.createElement('div');
+    this.sessionUsageContainerEl.className = 'claudian-status-panel-session-usage claudian-hidden';
+
+    this.sessionUsageContentEl = ownerDocument.createElement('div');
+    this.sessionUsageContentEl.className = 'claudian-status-panel-session-usage-content';
+    this.sessionUsageContainerEl.appendChild(this.sessionUsageContentEl);
+
+    this.panelEl.appendChild(this.sessionUsageContainerEl);
+
     this.containerEl.appendChild(this.panelEl);
   }
 
@@ -214,6 +237,55 @@ export class StatusPanel {
 
     // Update ARIA
     this.updateTodoAriaLabel(completedCount, totalCount);
+
+    this.scrollToBottom();
+  }
+
+  /**
+   * Render the session usage ledger in the status panel.
+   * Replaces any existing content — never duplicates.
+   * Passing null or empty ledger hides the section.
+   */
+  renderSessionUsage(ledger: SessionUsageLedger | null): void {
+    if (!this.sessionUsageContainerEl || !this.sessionUsageContentEl) return;
+
+    this.currentSessionUsage = ledger;
+
+    if (!ledger || ledger.rows.length === 0) {
+      this.sessionUsageContainerEl.addClass('claudian-hidden');
+      this.sessionUsageContentEl.empty();
+      return;
+    }
+
+    const service = new SessionUsageService();
+    const rows = service.getDisplayRows(ledger, '');
+
+    if (rows.length === 0) {
+      this.sessionUsageContainerEl.addClass('claudian-hidden');
+      this.sessionUsageContentEl.empty();
+      return;
+    }
+
+    const providerDisplayNames: Record<string, string> = {
+      codex: 'Codex',
+      opencode: 'OpenCode',
+      'opencode-go': 'OpenCode Go',
+      claude: 'Claude',
+      pi: 'Pi',
+    };
+
+    const text = formatSessionUsage(rows, providerDisplayNames, ledger);
+    if (!text) {
+      this.sessionUsageContainerEl.addClass('claudian-hidden');
+      return;
+    }
+
+    this.sessionUsageContainerEl.removeClass('claudian-hidden');
+    this.sessionUsageContentEl.empty();
+    this.sessionUsageContentEl.createEl('pre', {
+      cls: 'claudian-session-usage-text',
+      text,
+    });
 
     this.scrollToBottom();
   }
@@ -583,7 +655,10 @@ export class StatusPanel {
     this.todoContainerEl = null;
     this.todoHeaderEl = null;
     this.todoContentEl = null;
+    this.sessionUsageContainerEl = null;
+    this.sessionUsageContentEl = null;
     this.containerEl = null;
     this.currentTodos = null;
+    this.currentSessionUsage = null;
   }
 }

@@ -137,6 +137,7 @@ export class ConversationController {
       state.currentConversationId = null;
       state.clearMessages();
       state.usage = null;
+      state.sessionUsageLedger = null;
       state.currentTodos = null;
       state.pendingNewSessionPlan = null;
       state.planFilePath = null;
@@ -199,6 +200,7 @@ export class ConversationController {
       state.currentConversationId = null;
       state.clearMessages();
       state.usage = null;
+      state.sessionUsageLedger = null;
       state.currentTodos = null;
       state.pendingNewSessionPlan = null;
       state.planFilePath = null;
@@ -432,6 +434,7 @@ export class ConversationController {
       currentNote: currentNote,
       externalContextPaths: externalContextPaths.length > 0 ? externalContextPaths : undefined,
       usage: state.usage ?? undefined,
+      sessionUsage: state.sessionUsageLedger ?? undefined,
       enabledMcpServers: enabledMcpServers.length > 0 ? enabledMcpServers : undefined,
     };
 
@@ -460,6 +463,7 @@ export class ConversationController {
     state.currentConversationId = conversation.id;
     state.messages = [...conversation.messages];
     state.usage = conversation.usage ?? null;
+    state.sessionUsageLedger = conversation.sessionUsage ?? null;
     state.autoScrollEnabled = plugin.settings.enableAutoScroll ?? true;
     state.hasPendingConversationSave = false;
 

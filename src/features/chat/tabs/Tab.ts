@@ -37,6 +37,7 @@ import { MessageRenderer } from '../rendering/MessageRenderer';
 import { cleanupThinkingBlock } from '../rendering/ThinkingBlockRenderer';
 import { findRewindContext } from '../rewind';
 import { BangBashService } from '../services/BangBashService';
+import { SessionUsageService } from '../services/SessionUsageService';
 import { SubagentManager } from '../services/SubagentManager';
 import { ChatState } from '../state/ChatState';
 import { BangBashModeManager as BangBashModeManagerClass } from '../ui/BangBashModeManager';
@@ -463,6 +464,7 @@ export function createTab(options: TabCreateOptions): TabData {
   // callback that updates the StreamController. We defer the real callback
   // because StreamController doesn't exist until controllers are initialized.
   const subagentManager = new SubagentManager(() => {});
+  const sessionUsageService = new SessionUsageService();
 
   const dom = buildTabDOM(contentEl);
   state.queueIndicatorEl = dom.queueIndicatorEl;
@@ -501,6 +503,7 @@ export function createTab(options: TabCreateOptions): TabData {
       subagentManager,
       instructionRefineService: null,
       titleGenerationService: null,
+      sessionUsageService,
     },
     ui: {
       fileContextManager: null,
@@ -1298,6 +1301,8 @@ export function initializeTabControllers(
     getFileContextManager: () => ui.fileContextManager,
     updateQueueIndicator: () => tab.controllers.inputController?.updateQueueIndicator(),
     getAgentService: () => tab.service,
+    getStatusPanel: () => ui.statusPanel,
+    getSessionUsageService: () => tab.services.sessionUsageService,
   });
 
   // Wire subagent callback now that StreamController exists

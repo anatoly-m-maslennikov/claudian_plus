@@ -32,6 +32,7 @@ import type {
   ChatMessage,
   Conversation,
   ExitPlanModeCallback,
+  SessionUsageContributionInput,
   SlashCommand,
   StreamChunk,
   ToolCallInfo,
@@ -411,6 +412,14 @@ export class OpencodeChatRuntime implements ChatRuntime {
       }
       this.promptUsage = response.usage ?? null;
 
+      // Emit session_usage contribution from ACP prompt usage (before done)
+      if (this.promptUsage) {
+        const contribution = this.buildSessionUsageContribution(this.promptUsage);
+        if (contribution) {
+          activeTurn.queue.push({ type: 'session_usage', contribution, sessionId });
+        }
+      }
+
       const usage = buildAcpUsageInfo({
         contextWindow: this.contextUsage,
         model: this.getActiveDisplayModel(queryOptions),
@@ -756,6 +765,35 @@ export class OpencodeChatRuntime implements ChatRuntime {
     return this.currentSessionModelId
       ? encodeOpencodeModelId(this.currentSessionModelId)
       : (selectedModel && isOpencodeModelSelectionId(selectedModel) ? selectedModel : undefined);
+  }
+
+  private buildSessionUsageContribution(
+    usage: AcpUsage,
+  ): SessionUsageContributionInput | null {
+    const modelId = this.currentSessionModelId;
+    if (!modelId) return null;
+
+    const effort = this.currentSessionEffortValue
+      ? this.currentSessionEffortValue.trim()
+      : undefined;
+
+    const turnId = this.currentTurnMetadata.assistantMessageId
+      ?? this.sessionId
+      ?? `opencode-turn-${Date.now()}`;
+
+    return {
+      providerId: 'opencode',
+      modelId,
+      ...(effort && effort !== 'default' ? { effort } : {}),
+      turnId,
+      inputTokens: usage.inputTokens ?? 0,
+      outputTokens: usage.outputTokens ?? 0,
+      reasoningTokens: usage.thoughtTokens ?? 0,
+      ...(usage.cachedReadTokens && usage.cachedReadTokens > 0
+        ? { cachedInputTokens: usage.cachedReadTokens }
+        : {}),
+      completedAt: Date.now(),
+    };
   }
 
   private resolveSelectedModeId(): string | null {

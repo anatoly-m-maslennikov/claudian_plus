@@ -48,13 +48,16 @@ import {
   findPreferredCodexSkillByName,
 } from '../skills/CodexSkillListingService';
 import { type CodexProviderState, getCodexState } from '../types';
-import { DEFAULT_CODEX_PRIMARY_MODEL, FAST_TIER_CODEX_MODEL } from '../types/models';
+import { DEFAULT_CODEX_PRIMARY_MODEL, FAST_TIER_CODEX_MODEL, formatCodexModelLabel } from '../types/models';
 import { CodexAppServerProcess } from './CodexAppServerProcess';
 import {
   initializeCodexAppServerTransport,
   resolveCodexAppServerLaunchSpec,
 } from './codexAppServerSupport';
 import type {
+  AccountRateLimitsReadResponse,
+  AccountRateLimitsUpdatedNotification,
+  RateLimitSnapshot,
   SandboxPolicy,
   ServerRequestResolvedNotification,
   SkillInput,
@@ -144,6 +147,9 @@ export class CodexChatRuntime implements ChatRuntime {
   // Cancellation
   private canceled = false;
   private turnMetadata: ChatTurnMetadata = {};
+
+  // Rate-limit snapshot (seeded on init, updated via notifications)
+  private rateLimitSnapshot: RateLimitSnapshot | null = null;
 
   constructor(plugin: ClaudianPlugin) {
     this.plugin = plugin;
@@ -398,7 +404,10 @@ export class CodexChatRuntime implements ChatRuntime {
 
       if (turn.isCompact) {
         // --- Manual compact path: thread/compact/start ---
-        this.notificationRouter?.beginTurn({ isPlanTurn: false });
+        this.notificationRouter?.beginTurn({
+          isPlanTurn: false,
+          rateLimitSnapshot: this.rateLimitSnapshot,
+        });
 
         await this.transport!.request<ThreadCompactStartResult>(
           'thread/compact/start',
@@ -446,7 +455,13 @@ export class CodexChatRuntime implements ChatRuntime {
 
         // Configure router plan state before turn/start so buffered notifications
         // that arrive before currentTurnId is set already see the correct state.
-        this.notificationRouter?.beginTurn({ isPlanTurn: isPlanMode });
+        this.notificationRouter?.beginTurn({
+          isPlanTurn: isPlanMode,
+          turnModelId: resolvedModel,
+          turnModelDisplayName: formatCodexModelLabel(resolvedModel),
+          turnEffort: effort,
+          rateLimitSnapshot: this.rateLimitSnapshot,
+        });
 
         const turnResult = await this.transport!.request<TurnStartResult>('turn/start', {
           threadId,
@@ -822,6 +837,22 @@ export class CodexChatRuntime implements ChatRuntime {
     const initializeResult = await initializeCodexAppServerTransport(this.transport);
     this.runtimeContext = createCodexRuntimeContext(launchSpec, initializeResult);
     this.clientConfigKey = clientConfigKey;
+
+    // Seed rate-limit snapshot (best-effort — not all app-server versions support this)
+    void this.seedRateLimits().catch(() => {
+      // Rate-limit seeding is optional; cumulative usage works without it
+    });
+  }
+
+  private async seedRateLimits(): Promise<void> {
+    if (!this.transport) return;
+    try {
+      const response = await this.transport.request<AccountRateLimitsReadResponse>('account/rateLimits/read', {});
+      this.rateLimitSnapshot = response.rateLimits;
+      this.notificationRouter?.updateRateLimitSnapshot(response.rateLimits);
+    } catch {
+      // Not all app-server versions support account/rateLimits/read
+    }
   }
 
   private wireTransportHandlers(): void {
@@ -837,6 +868,7 @@ export class CodexChatRuntime implements ChatRuntime {
       'item/reasoning/summaryTextDelta',
       'item/reasoning/summaryPartAdded',
       'thread/tokenUsage/updated',
+      'account/rateLimits/updated',
       'turn/plan/updated',
       'turn/completed',
       'error',
@@ -856,6 +888,14 @@ export class CodexChatRuntime implements ChatRuntime {
         if (method === 'serverRequest/resolved') {
           this.handleServerRequestResolved(params as ServerRequestResolvedNotification);
           return;
+        }
+        if (method === 'account/rateLimits/updated') {
+          const snap = (params as AccountRateLimitsUpdatedNotification).rateLimits;
+          if (snap.primary) {
+            this.rateLimitSnapshot = {
+              primary: { ...(this.rateLimitSnapshot?.primary ?? { usedPercent: 0, windowDurationMins: 300 }), ...snap.primary },
+            };
+          }
         }
         if (!this.routeNotification(method, params)) {
           return;

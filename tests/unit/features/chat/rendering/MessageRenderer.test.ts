@@ -712,6 +712,91 @@ describe('MessageRenderer', () => {
     expect(footerEl!.children[0].textContent).toContain('Baked');
   });
 
+  describe('upsertSessionUsageFooter', () => {
+    it('creates a session usage footer on the content element', () => {
+      const messagesEl = createMockEl();
+      const { renderer } = createRenderer(messagesEl);
+
+      const contentEl = createMockEl();
+      const ledger = {
+        version: 1 as const,
+        conversationId: 'conv-1',
+        rows: [{
+          providerId: 'codex',
+          modelId: 'gpt-5.5',
+          displayName: 'GPT-5.5',
+          effort: 'high',
+          inputTokens: 10000,
+          outputTokens: 5000,
+          reasoningTokens: 1000,
+          totalTokens: 16000,
+          contributions: [],
+        }],
+      };
+
+      renderer.upsertSessionUsageFooter(contentEl, ledger, 'codex');
+
+      const footerEl = contentEl.children.find((c: any) => c.hasClass('claudian-response-footer'));
+      expect(footerEl).toBeDefined();
+      const usageSpan = footerEl!.children.find((c: any) => c.hasClass('claudian-session-usage'));
+      expect(usageSpan).toBeDefined();
+      expect(usageSpan!.textContent).toContain('Codex GPT-5.5');
+    });
+
+    it('replaces existing footer on repeated calls (never duplicates)', () => {
+      const messagesEl = createMockEl();
+      const { renderer } = createRenderer(messagesEl);
+
+      const contentEl = createMockEl();
+      const ledger = {
+        version: 1 as const,
+        conversationId: 'conv-1',
+        rows: [{
+          providerId: 'codex',
+          modelId: 'gpt-5.5',
+          displayName: 'GPT-5.5',
+          effort: 'high',
+          inputTokens: 10000,
+          outputTokens: 5000,
+          reasoningTokens: 1000,
+          totalTokens: 16000,
+          contributions: [],
+        }],
+      };
+
+      renderer.upsertSessionUsageFooter(contentEl, ledger, 'codex');
+      renderer.upsertSessionUsageFooter(contentEl, ledger, 'codex');
+
+      const footerEl = contentEl.children.find((c: any) => c.hasClass('claudian-response-footer'));
+      const usageSpans = footerEl!.children.filter((c: any) => c.hasClass('claudian-session-usage'));
+      expect(usageSpans).toHaveLength(1);
+    });
+
+    it('does nothing when contentEl is null', () => {
+      const messagesEl = createMockEl();
+      const { renderer } = createRenderer(messagesEl);
+      const ledger = { version: 1 as const, conversationId: 'c', rows: [] };
+
+      expect(() => renderer.upsertSessionUsageFooter(null, ledger, 'codex')).not.toThrow();
+    });
+
+    it('does nothing when ledger has no rows', () => {
+      const messagesEl = createMockEl();
+      const { renderer } = createRenderer(messagesEl);
+      const contentEl = createMockEl();
+      const ledger = { version: 1 as const, conversationId: 'c', rows: [] };
+
+      renderer.upsertSessionUsageFooter(contentEl, ledger, 'codex');
+
+      const footerEl = contentEl.children.find((c: any) => c.hasClass('claudian-response-footer'));
+      // Footer may or may not be created, but no usage span inside
+      const usageSpans = footerEl
+        ? footerEl.children.filter((c: any) => c.hasClass('claudian-session-usage'))
+        : [];
+      expect(usageSpans).toHaveLength(0);
+    });
+  });
+
   it('renders fallback content for old conversations without contentBlocks', () => {
     const messagesEl = createMockEl();
     const { renderer } = createRenderer(messagesEl);

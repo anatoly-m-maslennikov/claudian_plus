@@ -29,6 +29,7 @@ import type {
 import type {
   ChatMessage,
   Conversation,
+  SessionUsageContributionInput,
   SlashCommand,
   StreamChunk,
   ToolCallInfo,
@@ -570,6 +571,12 @@ export class PiChatRuntime implements ChatRuntime {
       const usage = await this.fetchUsage(queryOptions).catch(() => null);
       if (usage) {
         activeTurn.queue.push({ sessionId: this.sessionId, type: 'usage', usage });
+
+        // Emit session_usage contribution from Pi usage
+        const contribution = this.buildSessionUsageContribution(usage, queryOptions);
+        if (contribution) {
+          activeTurn.queue.push({ type: 'session_usage', contribution, sessionId: this.sessionId });
+        }
       }
       activeTurn.queue.push({ type: 'done' });
     } catch (error) {
@@ -867,6 +874,33 @@ export class PiChatRuntime implements ChatRuntime {
       this.plugin.settings as unknown as Record<string, unknown>,
       this.providerId,
     );
+  }
+
+  private buildSessionUsageContribution(
+    usage: UsageInfo,
+    queryOptions?: ChatRuntimeQueryOptions,
+  ): SessionUsageContributionInput | null {
+    const providerSettings = this.getProviderSettings();
+    const modelId = this.resolveSelectedModel(providerSettings, queryOptions);
+    if (!modelId) return null;
+
+    const effort = typeof this.plugin.settings.effortLevel === 'string'
+      ? this.plugin.settings.effortLevel.trim()
+      : undefined;
+
+    return {
+      providerId: 'pi',
+      modelId,
+      ...(effort && effort !== 'off' ? { effort } : {}),
+      turnId: this.sessionId ?? `pi-turn-${Date.now()}`,
+      inputTokens: usage.inputTokens ?? 0,
+      outputTokens: 0,
+      reasoningTokens: 0,
+      ...(usage.cacheReadInputTokens && usage.cacheReadInputTokens > 0
+        ? { cachedInputTokens: usage.cacheReadInputTokens }
+        : {}),
+      completedAt: Date.now(),
+    };
   }
 
   private resolveSelectedModel(

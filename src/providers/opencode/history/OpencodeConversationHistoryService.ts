@@ -1,10 +1,12 @@
 import type { ProviderConversationHistoryService } from '../../../core/providers/types';
-import type { Conversation } from '../../../core/types';
+import type { Conversation, SessionUsageContributionInput, SessionUsageLedger } from '../../../core/types';
+import { resolveExistingOpencodeDatabasePath } from '../runtime/OpencodePaths';
 import { getOpencodeState, type OpencodeProviderState } from '../types';
 import {
   isOpencodeSessionHydrationDiagnosticMessage,
   loadOpencodeSessionMessages,
 } from './OpencodeHistoryStore';
+import { loadOpencodeSessionUsageAggregation } from './OpencodeSqliteReader';
 
 export class OpencodeConversationHistoryService implements ProviderConversationHistoryService {
   private hydratedKeys = new Map<string, string>();
@@ -43,7 +45,63 @@ export class OpencodeConversationHistoryService implements ProviderConversationH
       return;
     }
 
+    // Reconcile session usage ledger from SQLite if not already persisted
+    if (!conversation.sessionUsage) {
+      const databasePath = resolveExistingOpencodeDatabasePath(state.databasePath);
+      if (databasePath && databasePath !== ':memory:') {
+        try {
+          const aggregation = await loadOpencodeSessionUsageAggregation(databasePath, sessionId);
+          if (aggregation && aggregation.length > 0) {
+            conversation.sessionUsage = this.buildLedgerFromAggregation(conversation.id, aggregation);
+          }
+        } catch {
+          // SQLite read failure — leave ledger absent (no error)
+        }
+      }
+    }
+
     this.hydratedKeys.set(conversation.id, hydrationKey);
+  }
+
+  private buildLedgerFromAggregation(
+    conversationId: string,
+    aggregation: { modelId: string; effort?: string; inputTokens: number; outputTokens: number; reasoningTokens: number; cachedInputTokens?: number; totalTokens: number; contributionCount: number }[],
+  ): SessionUsageLedger {
+    const ledger: SessionUsageLedger = { version: 1, conversationId, rows: [] };
+    for (const agg of aggregation) {
+      const contribution: SessionUsageContributionInput = {
+        providerId: 'opencode',
+        modelId: agg.modelId,
+        ...(agg.effort ? { effort: agg.effort } : {}),
+        turnId: `opencode-reload-${agg.modelId}`,
+        inputTokens: agg.inputTokens,
+        outputTokens: agg.outputTokens,
+        reasoningTokens: agg.reasoningTokens,
+        ...(agg.cachedInputTokens && agg.cachedInputTokens > 0 ? { cachedInputTokens: agg.cachedInputTokens } : {}),
+        completedAt: Date.now(),
+      };
+      ledger.rows.push({
+        providerId: 'opencode',
+        modelId: agg.modelId,
+        ...(agg.effort ? { effort: agg.effort } : {}),
+        inputTokens: agg.inputTokens,
+        outputTokens: agg.outputTokens,
+        reasoningTokens: agg.reasoningTokens,
+        ...(agg.cachedInputTokens && agg.cachedInputTokens > 0 ? { cachedInputTokens: agg.cachedInputTokens } : {}),
+        totalTokens: agg.inputTokens + agg.outputTokens + agg.reasoningTokens,
+        contributions: [{
+          id: `${contribution.turnId}\u0000opencode\u0000${contribution.modelId}\u0000${contribution.effort ?? ''}`,
+          source: 'provider-turn',
+          turnId: contribution.turnId,
+          inputTokens: contribution.inputTokens,
+          outputTokens: contribution.outputTokens,
+          reasoningTokens: contribution.reasoningTokens,
+          ...(contribution.cachedInputTokens ? { cachedInputTokens: contribution.cachedInputTokens } : {}),
+          completedAt: contribution.completedAt,
+        }],
+      });
+    }
+    return ledger;
   }
 
   async deleteConversationSession(

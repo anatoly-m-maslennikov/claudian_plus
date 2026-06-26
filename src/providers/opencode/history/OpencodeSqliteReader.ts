@@ -75,6 +75,129 @@ export async function loadOpencodeSessionRows(
   );
 }
 
+export interface OpencodeUsageAggregation {
+  modelId: string;
+  effort?: string;
+  inputTokens: number;
+  outputTokens: number;
+  reasoningTokens: number;
+  cachedInputTokens?: number;
+  totalTokens: number;
+  contributionCount: number;
+}
+
+/**
+ * Load and aggregate per-message token usage from the OpenCode SQLite database.
+ * Returns null when the database cannot be read or no usage data is found.
+ * Read-only — does not modify the database.
+ */
+export async function loadOpencodeSessionUsageAggregation(
+  databasePath: string,
+  sessionId: string,
+  dependencies: OpencodeSqliteReaderDependencies = {},
+): Promise<OpencodeUsageAggregation[] | null> {
+  const rows = await loadOpencodeSessionRows(databasePath, sessionId, dependencies);
+  if (!rows) return null;
+
+  const aggregations = new Map<string, OpencodeUsageAggregation>();
+
+  // Scan message rows for usage data in the JSON `data` column
+  for (const row of rows.messageRows) {
+    const data = parseRowData(row.data);
+    if (!data) continue;
+
+    const usage = data.usage;
+    if (!usage || typeof usage !== 'object') continue;
+
+    const u = usage as Record<string, unknown>;
+    const inputTokens = typeof u.inputTokens === 'number' ? u.inputTokens : 0;
+    const outputTokens = typeof u.outputTokens === 'number' ? u.outputTokens : 0;
+    const thoughtTokens = typeof u.thoughtTokens === 'number' ? u.thoughtTokens : 0;
+    const totalTokens = typeof u.totalTokens === 'number' ? u.totalTokens : 0;
+    const cachedRead = typeof u.cachedReadTokens === 'number' ? u.cachedReadTokens : 0;
+
+    if (inputTokens === 0 && outputTokens === 0 && totalTokens === 0) continue;
+
+    const modelId = typeof data.model === 'string' ? data.model : 'unknown';
+    const effort = typeof data.effort === 'string' ? data.effort : undefined;
+
+    const key = `${modelId}\u0000${effort ?? ''}`;
+    let agg = aggregations.get(key);
+    if (!agg) {
+      agg = {
+        modelId,
+        ...(effort ? { effort } : {}),
+        inputTokens: 0,
+        outputTokens: 0,
+        reasoningTokens: 0,
+        totalTokens: 0,
+        contributionCount: 0,
+      };
+      aggregations.set(key, agg);
+    }
+    agg.inputTokens += inputTokens;
+    agg.outputTokens += outputTokens;
+    agg.reasoningTokens += thoughtTokens;
+    if (cachedRead > 0) {
+      agg.cachedInputTokens = (agg.cachedInputTokens ?? 0) + cachedRead;
+    }
+    agg.totalTokens += totalTokens > 0 ? totalTokens : inputTokens + outputTokens + thoughtTokens;
+    agg.contributionCount += 1;
+  }
+
+  // Also scan part rows for usage data (some schemas store it on parts)
+  for (const row of rows.partRows) {
+    const data = parseRowData(row.data);
+    if (!data) continue;
+
+    const usage = data.usage;
+    if (!usage || typeof usage !== 'object') continue;
+
+    const u = usage as Record<string, unknown>;
+    const inputTokens = typeof u.inputTokens === 'number' ? u.inputTokens : 0;
+    const outputTokens = typeof u.outputTokens === 'number' ? u.outputTokens : 0;
+    if (inputTokens === 0 && outputTokens === 0) continue;
+
+    const modelId = typeof data.model === 'string' ? data.model : 'unknown';
+    const key = `${modelId}\u0000`;
+    let agg = aggregations.get(key);
+    if (!agg) {
+      agg = {
+        modelId,
+        inputTokens: 0,
+        outputTokens: 0,
+        reasoningTokens: 0,
+        totalTokens: 0,
+        contributionCount: 0,
+      };
+      aggregations.set(key, agg);
+    }
+    agg.inputTokens += inputTokens;
+    agg.outputTokens += outputTokens;
+    agg.totalTokens += inputTokens + outputTokens;
+    agg.contributionCount += 1;
+  }
+
+  if (aggregations.size === 0) return null;
+  return Array.from(aggregations.values());
+}
+
+function parseRowData(value: unknown): Record<string, unknown> | null {
+  if (!value) return null;
+  if (typeof value === 'object' && !Array.isArray(value)) {
+    return value as Record<string, unknown>;
+  }
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value);
+      if (isPlainObject(parsed)) return parsed as Record<string, unknown>;
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
 function resolveDependencies(
   dependencies: OpencodeSqliteReaderDependencies,
 ): Required<OpencodeSqliteReaderDependencies> {

@@ -210,6 +210,114 @@ describe('mapEventMsgEvent', () => {
     });
   });
 
+  describe('session_usage from token_count', () => {
+    it('token_count parses total_token_usage (cumulative)', () => {
+      const state = makeState({ currentTurnId: 'turn-1' });
+      const payload = {
+        type: 'token_count',
+        info: {
+          last_token_usage: { input_tokens: 500 },
+          total_token_usage: { input_tokens: 20000, output_tokens: 5000, reasoning_tokens: 1000, cached_input_tokens: 0, total_tokens: 26000 },
+        },
+      };
+      mapEventMsgEvent(payload, 'sess-1', state);
+      expect(state.pendingUsageByTurn.get('turn-1')?.cumulativeTotal).toEqual({
+        inputTokens: 20000,
+        outputTokens: 5000,
+        reasoningTokens: 1000,
+        cachedInputTokens: 0,
+        totalTokens: 26000,
+      });
+    });
+
+    it('token_count parses rate_limits.primary', () => {
+      const state = makeState({ currentTurnId: 'turn-1' });
+      const payload = {
+        type: 'token_count',
+        info: {
+          last_token_usage: { input_tokens: 500 },
+          rate_limits: { primary: { used_percent: 14, window_minutes: 300 } },
+        },
+      };
+      mapEventMsgEvent(payload, 'sess-1', state);
+      expect(state.pendingUsageByTurn.get('turn-1')?.fiveHourWindow).toEqual({
+        usedPercent: 14,
+        windowMinutes: 300,
+      });
+    });
+
+    it('task_complete emits order: usage → session_usage → done', () => {
+      const state = makeState({ currentTurnId: 'turn-1' });
+      state.pendingUsageByTurn.set('turn-1', {
+        contextTokens: 500,
+        contextWindow: 200_000,
+        contextWindowIsAuthoritative: false,
+        cumulativeTotal: { inputTokens: 20000, outputTokens: 5000, reasoningTokens: 1000, cachedInputTokens: 0, totalTokens: 26000 },
+      });
+      const chunks = mapEventMsgEvent({ type: 'task_complete' }, 'sess-1', state);
+      const types = chunks.map(c => c.type);
+      const usageIdx = types.indexOf('usage');
+      const suIdx = types.indexOf('session_usage');
+      const doneIdx = types.indexOf('done');
+      expect(usageIdx).toBeGreaterThanOrEqual(0);
+      expect(suIdx).toBeGreaterThan(usageIdx);
+      expect(doneIdx).toBeGreaterThan(suIdx);
+    });
+
+    it('delta = cumulative - previous cumulative', () => {
+      const state = makeState({ currentTurnId: 'turn-1' });
+      state.previousCumulativeTotal = { inputTokens: 20000, outputTokens: 5000, reasoningTokens: 1000, cachedInputTokens: 0, totalTokens: 26000 };
+      state.pendingUsageByTurn.set('turn-1', {
+        contextTokens: 500,
+        contextWindow: 200_000,
+        contextWindowIsAuthoritative: false,
+        cumulativeTotal: { inputTokens: 35000, outputTokens: 8000, reasoningTokens: 2000, cachedInputTokens: 0, totalTokens: 45000 },
+      });
+      const chunks = mapEventMsgEvent({ type: 'task_complete' }, 'sess-1', state);
+      const su = chunks.find(c => c.type === 'session_usage') as { contribution: { inputTokens: number; outputTokens: number } };
+      expect(su.contribution.inputTokens).toBe(15000);
+      expect(su.contribution.outputTokens).toBe(3000);
+    });
+
+    it('no token_count before task_complete → no session_usage', () => {
+      const state = makeState({ currentTurnId: 'turn-1' });
+      state.pendingUsageByTurn.set('turn-1', {
+        contextTokens: 500,
+        contextWindow: 200_000,
+        contextWindowIsAuthoritative: false,
+      });
+      const chunks = mapEventMsgEvent({ type: 'task_complete' }, 'sess-1', state);
+      expect(chunks.find(c => c.type === 'session_usage')).toBeUndefined();
+    });
+
+    it('dedup session_usage by turn id', () => {
+      const state = makeState({ currentTurnId: 'turn-1' });
+      state.pendingUsageByTurn.set('turn-1', {
+        contextTokens: 500,
+        contextWindow: 200_000,
+        contextWindowIsAuthoritative: false,
+        cumulativeTotal: { inputTokens: 20000, outputTokens: 5000, reasoningTokens: 1000, cachedInputTokens: 0, totalTokens: 26000 },
+      });
+      mapEventMsgEvent({ type: 'task_complete' }, 'sess-1', state);
+      const chunks2 = mapEventMsgEvent({ type: 'task_complete' }, 'sess-1', state);
+      expect(chunks2.find(c => c.type === 'session_usage')).toBeUndefined();
+    });
+
+    it('300-min window → fiveHourWindow in session_usage chunk', () => {
+      const state = makeState({ currentTurnId: 'turn-1' });
+      state.pendingUsageByTurn.set('turn-1', {
+        contextTokens: 500,
+        contextWindow: 200_000,
+        contextWindowIsAuthoritative: false,
+        cumulativeTotal: { inputTokens: 20000, outputTokens: 5000, reasoningTokens: 1000, cachedInputTokens: 0, totalTokens: 26000 },
+        fiveHourWindow: { usedPercent: 14, windowMinutes: 300 },
+      });
+      const chunks = mapEventMsgEvent({ type: 'task_complete' }, 'sess-1', state);
+      const su = chunks.find(c => c.type === 'session_usage') as { fiveHourWindow?: { usedPercent: number } };
+      expect(su?.fiveHourWindow?.usedPercent).toBe(14);
+    });
+  });
+
   describe('turn_aborted', () => {
     it('emits done chunk', () => {
       const state = makeState({ currentTurnId: 'turn-1' });

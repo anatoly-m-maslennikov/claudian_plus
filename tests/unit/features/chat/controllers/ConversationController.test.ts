@@ -492,6 +492,30 @@ describe('ConversationController', () => {
 
       expect(deps.state.hasPendingConversationSave).toBe(false);
     });
+
+    it('should persist sessionUsage ledger via updateConversation', async () => {
+      deps.state.currentConversationId = 'conv-1';
+      deps.state.messages = [{ id: '1', role: 'user', content: 'test', timestamp: Date.now() }];
+      const ledger = { version: 1 as const, conversationId: 'conv-1', rows: [] };
+      deps.state.sessionUsageLedger = ledger;
+
+      (deps.plugin.getConversationSync as jest.Mock).mockReturnValue({
+        id: 'conv-1',
+        providerId: 'codex',
+        title: 'Test',
+        messages: [],
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        sessionId: 'sess-1',
+      });
+
+      await controller.save();
+
+      expect(deps.plugin.updateConversation).toHaveBeenCalledWith(
+        'conv-1',
+        expect.objectContaining({ sessionUsage: ledger }),
+      );
+    });
   });
 
   describe('loadActive with existing conversation', () => {

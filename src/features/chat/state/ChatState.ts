@@ -1,4 +1,4 @@
-import type { UsageInfo } from '../../../core/types';
+import type { SessionUsageLedger, UsageInfo } from '../../../core/types';
 import type {
   ChatMessage,
   ChatStateCallbacks,
@@ -33,6 +33,7 @@ function createInitialState(): ChatStateData {
     pendingTools: new Map(),
     usage: null,
     ignoreUsageUpdates: false,
+    sessionUsageLedger: null,
     currentTodos: null,
     needsAttention: false,
     autoScrollEnabled: true, // Default; controllers will override based on settings
@@ -272,6 +273,14 @@ export class ChatState {
     this.state.ignoreUsageUpdates = value;
   }
 
+  get sessionUsageLedger(): SessionUsageLedger | null {
+    return this.state.sessionUsageLedger;
+  }
+
+  set sessionUsageLedger(value: SessionUsageLedger | null) {
+    this.state.sessionUsageLedger = value;
+  }
+
   // ============================================
   // Current Todos (for persistent bottom panel)
   // ============================================
@@ -419,6 +428,7 @@ export class ChatState {
     this.clearMaps();
     this.state.queuedMessage = null;
     this.usage = null;
+    this.sessionUsageLedger = null;
     this.currentTodos = null;
     this.autoScrollEnabled = true;
   }

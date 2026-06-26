@@ -5,6 +5,7 @@ import type { TodoItem } from '../../../core/tools/todo';
 import type {
   ChatMessage,
   ImageAttachment,
+  SessionUsageLedger,
   SubagentInfo,
   ToolCallInfo,
   UsageInfo,
@@ -87,6 +88,9 @@ export interface ChatStateData {
   // Flag to ignore usage updates (during session reset)
   ignoreUsageUpdates: boolean;
 
+  // Cumulative session usage ledger
+  sessionUsageLedger: SessionUsageLedger | null;
+
   // Current todo items for the persistent bottom panel
   currentTodos: TodoItem[] | null;
 
@@ -129,6 +133,7 @@ export type {
   ChatMessage,
   EditorSelectionContext,
   ImageAttachment,
+  SessionUsageLedger,
   SubagentInfo,
   ThinkingBlockState,
   TodoItem,

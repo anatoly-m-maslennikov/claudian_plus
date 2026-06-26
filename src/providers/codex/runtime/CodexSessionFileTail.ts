@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 
-import type { StreamChunk, UsageInfo } from '../../../core/types/chat';
+import type { FiveHourWindow, SessionUsageContributionInput, StreamChunk, UsageInfo } from '../../../core/types/chat';
 import { findCodexSessionFile } from '../history/CodexHistoryStore';
 import {
   isCodexToolOutputError,
@@ -117,9 +117,19 @@ export interface SessionTailState {
     contextTokens: number;
     contextWindow: number;
     contextWindowIsAuthoritative: boolean;
+    cumulativeTotal?: {
+      inputTokens: number;
+      outputTokens: number;
+      reasoningTokens: number;
+      cachedInputTokens: number;
+      totalTokens: number;
+    };
+    fiveHourWindow?: { usedPercent: number; windowMinutes: number };
   }>;
   emittedDoneByTurn: Set<string>;
   emittedUsageByTurn: Set<string>;
+  emittedSessionUsageByTurn: Set<string>;
+  previousCumulativeTotal: { inputTokens: number; outputTokens: number; reasoningTokens: number; cachedInputTokens: number; totalTokens: number } | null;
   callEnrichment: Map<string, CallEnrichmentData>;
 }
 
@@ -141,6 +151,8 @@ export function createSessionTailState(
     pendingUsageByTurn: new Map(),
     emittedDoneByTurn: new Set(),
     emittedUsageByTurn: new Set(),
+    emittedSessionUsageByTurn: new Set(),
+    previousCumulativeTotal: null,
     callEnrichment: new Map(),
   };
 }
@@ -258,6 +270,50 @@ export function mapEventMsgEvent(
         }
       }
 
+      // Emit session_usage (cumulative delta) before done
+      if (!state.emittedSessionUsageByTurn.has(turnId)) {
+        const pending = state.pendingUsageByTurn.get(turnId);
+        if (pending?.cumulativeTotal) {
+          const cumulative = pending.cumulativeTotal;
+          const previous = state.previousCumulativeTotal;
+          const delta = {
+            inputTokens: cumulative.inputTokens - (previous?.inputTokens ?? 0),
+            outputTokens: cumulative.outputTokens - (previous?.outputTokens ?? 0),
+            reasoningTokens: cumulative.reasoningTokens - (previous?.reasoningTokens ?? 0),
+            cachedInputTokens: cumulative.cachedInputTokens - (previous?.cachedInputTokens ?? 0),
+            totalTokens: cumulative.totalTokens - (previous?.totalTokens ?? 0),
+          };
+
+          if (delta.totalTokens > 0 || delta.inputTokens > 0 || delta.outputTokens > 0) {
+            state.previousCumulativeTotal = cumulative;
+
+            const contribution: SessionUsageContributionInput = {
+              providerId: 'codex',
+              modelId: 'codex',
+              turnId,
+              inputTokens: delta.inputTokens,
+              outputTokens: delta.outputTokens,
+              reasoningTokens: delta.reasoningTokens,
+              ...(delta.cachedInputTokens > 0 ? { cachedInputTokens: delta.cachedInputTokens } : {}),
+              completedAt: Date.now(),
+            };
+
+            let fiveHourWindow: FiveHourWindow | undefined;
+            if (pending.fiveHourWindow && pending.fiveHourWindow.windowMinutes === 300) {
+              fiveHourWindow = {
+                usedPercent: pending.fiveHourWindow.usedPercent,
+                windowMinutes: 300,
+                observedAt: Date.now(),
+                providerId: 'codex',
+              };
+            }
+
+            chunks.push({ type: 'session_usage', contribution, fiveHourWindow, sessionId });
+          }
+          state.emittedSessionUsageByTurn.add(turnId);
+        }
+      }
+
       if (!state.emittedDoneByTurn.has(turnId)) {
         chunks.push({ type: 'done' });
         state.emittedDoneByTurn.add(turnId);
@@ -300,16 +356,36 @@ export function mapEventMsgEvent(
     case 'token_count': {
       const turnId = resolveTurnId(state, undefined);
       const lastTokenUsage = isRecord(info.last_token_usage) ? info.last_token_usage : {};
+      const totalTokenUsage = isRecord(info.total_token_usage) ? info.total_token_usage : {};
+      const rateLimits = isRecord(info.rate_limits) ? info.rate_limits : {};
+      const primary = isRecord(rateLimits.primary) ? rateLimits.primary : {};
       const inputTokens = typeof lastTokenUsage.input_tokens === 'number'
         ? lastTokenUsage.input_tokens
         : typeof lastTokenUsage.input === 'number'
           ? lastTokenUsage.input
           : 0;
 
+      const getNum = (v: unknown): number => typeof v === 'number' ? v : 0;
+
+      const cumulativeTotal = {
+        inputTokens: getNum(totalTokenUsage.input_tokens),
+        outputTokens: getNum(totalTokenUsage.output_tokens),
+        reasoningTokens: getNum(totalTokenUsage.reasoning_tokens),
+        cachedInputTokens: getNum(totalTokenUsage.cached_input_tokens),
+        totalTokens: getNum(totalTokenUsage.total_tokens),
+      };
+
+      const fiveHourWindow = {
+        usedPercent: getNum(primary.used_percent),
+        windowMinutes: getNum(primary.window_minutes),
+      };
+
       state.pendingUsageByTurn.set(turnId, {
         contextTokens: inputTokens,
         contextWindow: state.modelContextWindow,
         contextWindowIsAuthoritative: state.modelContextWindowIsAuthoritative,
+        ...(cumulativeTotal.totalTokens > 0 ? { cumulativeTotal } : {}),
+        ...(fiveHourWindow.windowMinutes > 0 ? { fiveHourWindow } : {}),
       });
       return [];
     }

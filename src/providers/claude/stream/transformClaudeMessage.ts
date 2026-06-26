@@ -1,6 +1,6 @@
 import type { SDKMessage, SDKResultError } from '@anthropic-ai/claude-agent-sdk';
 
-import type { SDKToolUseResult, StreamChunk, UsageInfo } from '../../../core/types';
+import type { SDKToolUseResult, SessionUsageContributionInput, StreamChunk, UsageInfo } from '../../../core/types';
 import { isBlockedMessage } from '../sdk/messages';
 import { extractToolResultContent } from '../sdk/toolResultContent';
 import type { TransformEvent } from '../sdk/types';
@@ -74,6 +74,10 @@ export interface TransformOptions {
   streamState?: TransformStreamState;
   /** Tracks prompt-token usage across Anthropic-compatible stream events. */
   usageState?: TransformUsageState;
+  /** Turn ID for session usage attribution. */
+  turnId?: string;
+  /** Effort level for session usage attribution. */
+  effortLevel?: string;
 }
 
 export interface MessageUsage {
@@ -87,6 +91,7 @@ interface PromptUsageSnapshot {
   inputTokens: number;
   cacheCreationInputTokens: number;
   cacheReadInputTokens: number;
+  outputTokens: number;
   contextTokens: number;
 }
 
@@ -248,6 +253,7 @@ const EMPTY_PROMPT_USAGE: PromptUsageSnapshot = {
   inputTokens: 0,
   cacheCreationInputTokens: 0,
   cacheReadInputTokens: 0,
+  outputTokens: 0,
   contextTokens: 0,
 };
 
@@ -270,10 +276,12 @@ function toPromptUsageSnapshot(usage: MessageUsage): PromptUsageSnapshot {
   const inputTokens = normalizeTokenCount(usage.input_tokens);
   const cacheCreationInputTokens = normalizeTokenCount(usage.cache_creation_input_tokens);
   const cacheReadInputTokens = normalizeTokenCount(usage.cache_read_input_tokens);
+  const outputTokens = normalizeTokenCount(usage.output_tokens);
   return {
     inputTokens,
     cacheCreationInputTokens,
     cacheReadInputTokens,
+    outputTokens,
     contextTokens: inputTokens + cacheCreationInputTokens + cacheReadInputTokens,
   };
 }
@@ -286,10 +294,12 @@ function mergePromptUsage(
   const inputTokens = Math.max(current.inputTokens, next.inputTokens);
   const cacheCreationInputTokens = Math.max(current.cacheCreationInputTokens, next.cacheCreationInputTokens);
   const cacheReadInputTokens = Math.max(current.cacheReadInputTokens, next.cacheReadInputTokens);
+  const outputTokens = Math.max(current.outputTokens, next.outputTokens);
   return {
     inputTokens,
     cacheCreationInputTokens,
     cacheReadInputTokens,
+    outputTokens,
     contextTokens: inputTokens + cacheCreationInputTokens + cacheReadInputTokens,
   };
 }
@@ -363,6 +373,34 @@ function maybeEmitUsageFromPromptUsage(
 
   options?.usageState?.markEmitted(promptUsage);
   return { type: 'usage', usage: buildUsageInfo(promptUsage, options) };
+}
+
+function maybeEmitSessionUsageFromPromptUsage(
+  promptUsage: PromptUsageSnapshot,
+  options?: TransformOptions,
+): StreamChunk | null {
+  if (promptUsage.inputTokens <= 0 && promptUsage.outputTokens <= 0) {
+    return null;
+  }
+
+  const model = options?.intendedModel ?? 'sonnet';
+  const effort = options?.effortLevel;
+
+  const contribution: SessionUsageContributionInput = {
+    providerId: 'claude',
+    modelId: model,
+    ...(effort && effort !== 'off' ? { effort } : {}),
+    turnId: options?.turnId ?? `claude-turn-${Date.now()}`,
+    inputTokens: promptUsage.inputTokens,
+    outputTokens: promptUsage.outputTokens,
+    reasoningTokens: 0,
+    ...(promptUsage.cacheReadInputTokens > 0
+      ? { cachedInputTokens: promptUsage.cacheReadInputTokens }
+      : {}),
+    completedAt: Date.now(),
+  };
+
+  return { type: 'session_usage', contribution };
 }
 
 /**
@@ -554,10 +592,18 @@ export function* transformSDKMessage(
     case 'result':
       options?.streamState?.clearAll();
       if (options?.usageState) {
-        const usageChunk = maybeEmitUsageFromPromptUsage(options.usageState.getPromptUsage(), options);
+        const promptUsage = options.usageState.getPromptUsage();
+        const usageChunk = maybeEmitUsageFromPromptUsage(promptUsage, options);
         if (usageChunk) {
           yield usageChunk;
         }
+
+        // Emit session_usage contribution from cumulative prompt usage
+        const sessionUsageChunk = maybeEmitSessionUsageFromPromptUsage(promptUsage, options);
+        if (sessionUsageChunk) {
+          yield sessionUsageChunk;
+        }
+
         options.usageState.clear();
       }
       if (isResultError(message)) {

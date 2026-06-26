@@ -518,6 +518,25 @@ export interface TokenUsageUpdatedNotification {
   };
 }
 
+export interface RateLimitWindow {
+  usedPercent: number;
+  windowDurationMins: number;
+}
+
+export interface RateLimitSnapshot {
+  primary: RateLimitWindow;
+}
+
+export interface AccountRateLimitsUpdatedNotification {
+  rateLimits: Partial<RateLimitSnapshot>;
+  threadId: string;
+  turnId: string;
+}
+
+export interface AccountRateLimitsReadResponse {
+  rateLimits: RateLimitSnapshot;
+}
+
 export interface PlanStep {
   step: string;
   status: string;

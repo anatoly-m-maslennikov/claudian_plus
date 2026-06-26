@@ -1,5 +1,5 @@
 import type { ChatTurnMetadata } from '../../../core/runtime/types';
-import type { StreamChunk, UsageInfo } from '../../../core/types';
+import type { FiveHourWindow, SessionUsageContributionInput, StreamChunk, UsageInfo } from '../../../core/types';
 import {
   isCodexToolOutputError,
   normalizeCodexToolInput,
@@ -8,6 +8,7 @@ import {
   parseCodexArguments,
 } from '../normalization/codexToolNormalization';
 import type {
+  AccountRateLimitsUpdatedNotification,
   AgentMessageDeltaNotification,
   AgentMessageItem,
   CollabAgentToolCallItem,
@@ -21,8 +22,10 @@ import type {
   ItemStartedNotification,
   McpToolCallItem,
   PlanDeltaNotification,
+  RateLimitSnapshot,
   ReasoningSummaryTextDeltaNotification,
   ReasoningTextDeltaNotification,
+  TokenUsage,
   TokenUsageUpdatedNotification,
   TurnCompletedNotification,
   TurnPlanUpdatedNotification,
@@ -47,6 +50,14 @@ const COLLAB_AGENT_TOOL_MAP: Record<string, string> = {
   closeAgent: 'close_agent',
 };
 
+export interface CodexTurnParams {
+  isPlanTurn: boolean;
+  turnModelId?: string;
+  turnModelDisplayName?: string;
+  turnEffort?: string;
+  rateLimitSnapshot?: RateLimitSnapshot | null;
+}
+
 export class CodexNotificationRouter {
   private seenWebSearchIds = new Set<string>();
   private planUpdateCounter = 0;
@@ -64,6 +75,14 @@ export class CodexNotificationRouter {
   private rawToolOutputsByCallId = new Map<string, RawToolResult>();
   private suppressedRawCallIds = new Set<string>();
   private fileChangeInputsById = new Map<string, Record<string, unknown>>();
+
+  // Session usage tracking
+  private cumulativeTotalByTurn = new Map<string, TokenUsage>();
+  private previousCumulativeTotal: TokenUsage | null = null;
+  private turnModelId: string | undefined;
+  private turnModelDisplayName: string | undefined;
+  private turnEffort: string | undefined;
+  private rateLimitSnapshot: RateLimitSnapshot | null = null;
 
   constructor(
     private readonly emit: ChunkEmitter,
@@ -115,7 +134,7 @@ export class CodexNotificationRouter {
     this.streamedAssistantTurnText += text;
   }
 
-  beginTurn(params: { isPlanTurn: boolean }): void {
+  beginTurn(params: CodexTurnParams): void {
     this.isPlanTurn = params.isPlanTurn;
     this.sawPlanDelta = false;
     this.startedUserMessageIds.clear();
@@ -128,6 +147,11 @@ export class CodexNotificationRouter {
     this.rawToolOutputsByCallId.clear();
     this.suppressedRawCallIds.clear();
     this.fileChangeInputsById.clear();
+    this.cumulativeTotalByTurn.clear();
+    this.turnModelId = params.turnModelId;
+    this.turnModelDisplayName = params.turnModelDisplayName;
+    this.turnEffort = params.turnEffort;
+    this.rateLimitSnapshot = params.rateLimitSnapshot ?? null;
   }
 
   endTurn(): void {
@@ -143,6 +167,24 @@ export class CodexNotificationRouter {
     this.rawToolOutputsByCallId.clear();
     this.suppressedRawCallIds.clear();
     this.fileChangeInputsById.clear();
+    this.cumulativeTotalByTurn.clear();
+    this.turnModelId = undefined;
+    this.turnModelDisplayName = undefined;
+    this.turnEffort = undefined;
+  }
+
+  /** Update the rate-limit snapshot from a sparse notification or full read. */
+  updateRateLimitSnapshot(snapshot: Partial<RateLimitSnapshot>): void {
+    if (!this.rateLimitSnapshot) {
+      this.rateLimitSnapshot = snapshot as RateLimitSnapshot;
+      return;
+    }
+    if (snapshot.primary) {
+      this.rateLimitSnapshot = {
+        ...this.rateLimitSnapshot,
+        primary: { ...this.rateLimitSnapshot.primary, ...snapshot.primary },
+      };
+    }
   }
 
   handleNotification(method: string, params: unknown): void {
@@ -182,6 +224,9 @@ export class CodexNotificationRouter {
         break;
       case 'thread/tokenUsage/updated':
         this.onTokenUsageUpdated(params as TokenUsageUpdatedNotification);
+        break;
+      case 'account/rateLimits/updated':
+        this.onAccountRateLimitsUpdated(params as AccountRateLimitsUpdatedNotification);
         break;
       case 'turn/plan/updated':
         this.onPlanUpdated(params as TurnPlanUpdatedNotification);
@@ -788,6 +833,13 @@ export class CodexNotificationRouter {
     };
 
     this.emit({ type: 'usage', usage, sessionId: params.threadId });
+
+    // Buffer cumulative total for session_usage delta calculation at turn completion
+    this.cumulativeTotalByTurn.set(params.turnId, params.tokenUsage.total);
+  }
+
+  private onAccountRateLimitsUpdated(params: AccountRateLimitsUpdatedNotification): void {
+    this.updateRateLimitSnapshot(params.rateLimits);
   }
 
   private onTurnCompleted(params: TurnCompletedNotification): void {
@@ -798,6 +850,7 @@ export class CodexNotificationRouter {
     }
 
     if (turn.status === 'completed') {
+      this.emitSessionUsage(turn.id);
       this.onTurnMetadata?.({
         assistantMessageId: turn.id,
         ...(this.isPlanTurn && this.sawPlanDelta ? { planCompleted: true } : {}),
@@ -806,6 +859,54 @@ export class CodexNotificationRouter {
 
     this.flushPendingRawToolOutputs();
     this.emit({ type: 'done' });
+  }
+
+  private emitSessionUsage(turnId: string): void {
+    const cumulativeTotal = this.cumulativeTotalByTurn.get(turnId);
+    if (!cumulativeTotal) return;
+
+    const previous = this.previousCumulativeTotal;
+    const delta: TokenUsage = {
+      totalTokens: cumulativeTotal.totalTokens - (previous?.totalTokens ?? 0),
+      inputTokens: cumulativeTotal.inputTokens - (previous?.inputTokens ?? 0),
+      cachedInputTokens: cumulativeTotal.cachedInputTokens - (previous?.cachedInputTokens ?? 0),
+      outputTokens: cumulativeTotal.outputTokens - (previous?.outputTokens ?? 0),
+      reasoningOutputTokens: cumulativeTotal.reasoningOutputTokens - (previous?.reasoningOutputTokens ?? 0),
+    };
+
+    // Only emit if delta is meaningful (not all zeros)
+    if (delta.totalTokens <= 0 && delta.inputTokens <= 0 && delta.outputTokens <= 0) {
+      return;
+    }
+
+    this.previousCumulativeTotal = cumulativeTotal;
+
+    const contribution: SessionUsageContributionInput = {
+      providerId: 'codex',
+      modelId: this.turnModelId ?? 'unknown',
+      ...(this.turnModelDisplayName ? { displayName: this.turnModelDisplayName } : {}),
+      ...(this.turnEffort ? { effort: this.turnEffort } : {}),
+      turnId,
+      inputTokens: delta.inputTokens,
+      outputTokens: delta.outputTokens,
+      reasoningTokens: delta.reasoningOutputTokens,
+      ...(delta.cachedInputTokens > 0 ? { cachedInputTokens: delta.cachedInputTokens } : {}),
+      completedAt: Date.now(),
+    };
+
+    const fiveHourWindow = this.buildFiveHourWindow();
+    this.emit({ type: 'session_usage', contribution, fiveHourWindow });
+  }
+
+  private buildFiveHourWindow(): FiveHourWindow | undefined {
+    const primary = this.rateLimitSnapshot?.primary;
+    if (!primary || primary.windowDurationMins !== 300) return undefined;
+    return {
+      usedPercent: primary.usedPercent,
+      windowMinutes: 300,
+      observedAt: Date.now(),
+      providerId: 'codex',
+    };
   }
 
   private onError(params: ErrorNotification): void {

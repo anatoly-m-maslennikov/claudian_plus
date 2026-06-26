@@ -1181,8 +1181,12 @@ describe('CodexNotificationRouter', () => {
       expect(chunks).toHaveLength(0);
     });
 
-    it('ignores account/rateLimits/updated', () => {
-      router.handleNotification('account/rateLimits/updated', { rateLimits: {} });
+    it('handles account/rateLimits/updated (sparse merge, no chunks emitted)', () => {
+      router.handleNotification('account/rateLimits/updated', {
+        rateLimits: { primary: { usedPercent: 14, windowDurationMins: 300 } },
+        threadId: 't1',
+        turnId: 'turn1',
+      });
       expect(chunks).toHaveLength(0);
     });
 
@@ -1243,6 +1247,178 @@ describe('CodexNotificationRouter', () => {
       });
 
       expect(turnMetadata).toEqual([]);
+    });
+  });
+
+  describe('session_usage', () => {
+    function tokenUsage(total: number, last = total): {
+      total: { totalTokens: number; inputTokens: number; cachedInputTokens: number; outputTokens: number; reasoningOutputTokens: number };
+      last: { totalTokens: number; inputTokens: number; cachedInputTokens: number; outputTokens: number; reasoningOutputTokens: number };
+      modelContextWindow: number;
+    } {
+      return {
+        total: { totalTokens: total, inputTokens: total, cachedInputTokens: 0, outputTokens: 0, reasoningOutputTokens: 0 },
+        last: { totalTokens: last, inputTokens: last, cachedInputTokens: 0, outputTokens: 0, reasoningOutputTokens: 0 },
+        modelContextWindow: 200000,
+      };
+    }
+
+    it('emits session_usage with cumulative delta on turn/completed', () => {
+      router.beginTurn({ isPlanTurn: false, turnModelId: 'gpt-5.5', turnEffort: 'high' });
+      router.handleNotification('thread/tokenUsage/updated', {
+        threadId: 't1', turnId: 'turn1', tokenUsage: tokenUsage(20000),
+      });
+      router.handleNotification('turn/completed', {
+        threadId: 't1', turn: { id: 'turn1', items: [], status: 'completed', error: null },
+      });
+
+      const sessionUsage = chunks.find(c => c.type === 'session_usage');
+      expect(sessionUsage).toBeDefined();
+      expect((sessionUsage as { contribution: { inputTokens: number } }).contribution.inputTokens).toBe(20000);
+    });
+
+    it('second turn delta = cumulative - previous cumulative', () => {
+      router.beginTurn({ isPlanTurn: false, turnModelId: 'gpt-5.5' });
+      router.handleNotification('thread/tokenUsage/updated', {
+        threadId: 't1', turnId: 'turn1', tokenUsage: tokenUsage(20000),
+      });
+      router.handleNotification('turn/completed', {
+        threadId: 't1', turn: { id: 'turn1', items: [], status: 'completed', error: null },
+      });
+
+      router.beginTurn({ isPlanTurn: false, turnModelId: 'gpt-5.5' });
+      router.handleNotification('thread/tokenUsage/updated', {
+        threadId: 't1', turnId: 'turn2', tokenUsage: tokenUsage(35000),
+      });
+      router.handleNotification('turn/completed', {
+        threadId: 't1', turn: { id: 'turn2', items: [], status: 'completed', error: null },
+      });
+
+      const sessionUsages = chunks.filter(c => c.type === 'session_usage');
+      expect(sessionUsages).toHaveLength(2);
+      expect((sessionUsages[1] as { contribution: { inputTokens: number } }).contribution.inputTokens).toBe(15000);
+    });
+
+    it('emits session_usage before done', () => {
+      router.beginTurn({ isPlanTurn: false, turnModelId: 'gpt-5.5' });
+      router.handleNotification('thread/tokenUsage/updated', {
+        threadId: 't1', turnId: 'turn1', tokenUsage: tokenUsage(20000),
+      });
+      router.handleNotification('turn/completed', {
+        threadId: 't1', turn: { id: 'turn1', items: [], status: 'completed', error: null },
+      });
+
+      const types = chunks.map(c => c.type);
+      const suIdx = types.indexOf('session_usage');
+      const doneIdx = types.indexOf('done');
+      expect(suIdx).toBeGreaterThanOrEqual(0);
+      expect(doneIdx).toBeGreaterThan(suIdx);
+    });
+
+    it('300-min window → fiveHourWindow populated', () => {
+      router.beginTurn({
+        isPlanTurn: false,
+        turnModelId: 'gpt-5.5',
+        rateLimitSnapshot: { primary: { usedPercent: 14, windowDurationMins: 300 } },
+      });
+      router.handleNotification('thread/tokenUsage/updated', {
+        threadId: 't1', turnId: 'turn1', tokenUsage: tokenUsage(20000),
+      });
+      router.handleNotification('turn/completed', {
+        threadId: 't1', turn: { id: 'turn1', items: [], status: 'completed', error: null },
+      });
+
+      const su = chunks.find(c => c.type === 'session_usage') as { fiveHourWindow?: { usedPercent: number } };
+      expect(su?.fiveHourWindow?.usedPercent).toBe(14);
+    });
+
+    it('missing rate-limit snapshot → fiveHourWindow undefined', () => {
+      router.beginTurn({ isPlanTurn: false, turnModelId: 'gpt-5.5' });
+      router.handleNotification('thread/tokenUsage/updated', {
+        threadId: 't1', turnId: 'turn1', tokenUsage: tokenUsage(20000),
+      });
+      router.handleNotification('turn/completed', {
+        threadId: 't1', turn: { id: 'turn1', items: [], status: 'completed', error: null },
+      });
+
+      const su = chunks.find(c => c.type === 'session_usage') as { fiveHourWindow?: unknown };
+      expect(su?.fiveHourWindow).toBeUndefined();
+    });
+
+    it('non-300-min window → fiveHourWindow undefined', () => {
+      router.beginTurn({
+        isPlanTurn: false,
+        turnModelId: 'gpt-5.5',
+        rateLimitSnapshot: { primary: { usedPercent: 14, windowDurationMins: 60 } },
+      });
+      router.handleNotification('thread/tokenUsage/updated', {
+        threadId: 't1', turnId: 'turn1', tokenUsage: tokenUsage(20000),
+      });
+      router.handleNotification('turn/completed', {
+        threadId: 't1', turn: { id: 'turn1', items: [], status: 'completed', error: null },
+      });
+
+      const su = chunks.find(c => c.type === 'session_usage') as { fiveHourWindow?: unknown };
+      expect(su?.fiveHourWindow).toBeUndefined();
+    });
+
+    it('model id + effort propagated into contribution', () => {
+      router.beginTurn({ isPlanTurn: false, turnModelId: 'gpt-5.5', turnEffort: 'high' });
+      router.handleNotification('thread/tokenUsage/updated', {
+        threadId: 't1', turnId: 'turn1', tokenUsage: tokenUsage(20000),
+      });
+      router.handleNotification('turn/completed', {
+        threadId: 't1', turn: { id: 'turn1', items: [], status: 'completed', error: null },
+      });
+
+      const su = chunks.find(c => c.type === 'session_usage') as { contribution: { modelId: string; effort?: string } };
+      expect(su.contribution.modelId).toBe('gpt-5.5');
+      expect(su.contribution.effort).toBe('high');
+    });
+
+    it('sparse rate-limit merge does not erase prior fields', () => {
+      router.beginTurn({
+        isPlanTurn: false,
+        turnModelId: 'gpt-5.5',
+        rateLimitSnapshot: { primary: { usedPercent: 14, windowDurationMins: 300 } },
+      });
+      // Sparse update with only usedPercent
+      router.handleNotification('account/rateLimits/updated', {
+        rateLimits: { primary: { usedPercent: 20 } },
+        threadId: 't1',
+        turnId: 'turn1',
+      });
+      router.handleNotification('thread/tokenUsage/updated', {
+        threadId: 't1', turnId: 'turn1', tokenUsage: tokenUsage(20000),
+      });
+      router.handleNotification('turn/completed', {
+        threadId: 't1', turn: { id: 'turn1', items: [], status: 'completed', error: null },
+      });
+
+      const su = chunks.find(c => c.type === 'session_usage') as { fiveHourWindow?: { usedPercent: number; windowMinutes: number } };
+      expect(su?.fiveHourWindow?.usedPercent).toBe(20);
+      expect(su?.fiveHourWindow?.windowMinutes).toBe(300);
+    });
+
+    it('failed turn does not emit session_usage', () => {
+      router.beginTurn({ isPlanTurn: false, turnModelId: 'gpt-5.5' });
+      router.handleNotification('thread/tokenUsage/updated', {
+        threadId: 't1', turnId: 'turn1', tokenUsage: tokenUsage(20000),
+      });
+      router.handleNotification('turn/completed', {
+        threadId: 't1', turn: { id: 'turn1', items: [], status: 'failed', error: { message: 'err', codexErrorInfo: 'other', additionalDetails: null } },
+      });
+
+      expect(chunks.find(c => c.type === 'session_usage')).toBeUndefined();
+    });
+
+    it('no tokenUsage before turn/completed → no session_usage', () => {
+      router.beginTurn({ isPlanTurn: false, turnModelId: 'gpt-5.5' });
+      router.handleNotification('turn/completed', {
+        threadId: 't1', turn: { id: 'turn1', items: [], status: 'completed', error: null },
+      });
+
+      expect(chunks.find(c => c.type === 'session_usage')).toBeUndefined();
     });
   });
 });

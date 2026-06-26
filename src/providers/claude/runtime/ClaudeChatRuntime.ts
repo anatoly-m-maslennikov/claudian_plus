@@ -811,6 +811,8 @@ export class ClaudianService implements ChatRuntime {
       customContextLimits: settings.customContextLimits,
       streamState,
       usageState,
+      turnId: this.turnMetadata.assistantMessageId,
+      effortLevel: settings.effortLevel as string | undefined,
     };
   }
 

@@ -144,4 +144,22 @@ describe('PiConversationHistoryService', () => {
       sessionId: 's1',
     });
   });
+
+  it('preserves sessionUsage across history hydration', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'pi-history-'));
+    const sessionFile = path.join(dir, 'session.jsonl');
+    await fs.writeFile(sessionFile, JSON.stringify({
+      id: 'u1',
+      message: { content: 'Hello', role: 'user' },
+      type: 'entry',
+    }));
+    const conversation = createConversation(sessionFile);
+    const ledger = { version: 1 as const, conversationId: 'conv-1', rows: [] };
+    conversation.sessionUsage = ledger;
+
+    const service = new PiConversationHistoryService();
+    await service.hydrateConversationHistory(conversation, null);
+
+    expect(conversation.sessionUsage).toBe(ledger);
+  });
 });

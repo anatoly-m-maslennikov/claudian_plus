@@ -79,6 +79,8 @@ export interface Conversation {
   externalContextPaths?: string[];
   /** Context window usage information. */
   usage?: UsageInfo;
+  /** Cumulative session usage ledger (per provider+model+effort rows). */
+  sessionUsage?: SessionUsageLedger;
   /** Status of AI title generation. */
   titleGenerationStatus?: 'pending' | 'success' | 'failed';
   /** UI-enabled MCP servers for this session (context-saving servers activated via selector). */
@@ -146,6 +148,7 @@ export type StreamChunk =
   | { type: 'notice'; content: string; level?: 'info' | 'warning' }
   | { type: 'done' }
   | { type: 'usage'; usage: UsageInfo; sessionId?: string | null }
+  | { type: 'session_usage'; contribution: SessionUsageContributionInput; fiveHourWindow?: FiveHourWindow; sessionId?: string | null }
   | { type: 'context_compacted' }
   | { type: 'async_subagent_result'; agentId: string; status: 'completed' | 'error'; result?: string }
   | { type: 'subagent_tool_use'; subagentId: string; id: string; name: string; input: Record<string, unknown> }
@@ -174,4 +177,62 @@ export interface UsageInfo {
   contextWindowIsAuthoritative?: boolean;
   contextTokens: number;
   percentage: number;
+}
+
+// ─── Cumulative session usage ledger ───
+
+/** A single provider/model/effort contribution to the session usage ledger. */
+export interface SessionUsageContribution {
+  id: string;
+  source: 'provider-turn' | 'delegated-worker';
+  turnId: string;
+  inputTokens: number;
+  outputTokens: number;
+  reasoningTokens: number;
+  cachedInputTokens?: number;
+  completedAt: number;
+}
+
+/** One row in the session usage ledger, keyed by providerId + modelId + effort. */
+export interface SessionUsageRow {
+  providerId: string;
+  modelId: string;
+  displayName?: string;
+  effort?: string;
+  inputTokens: number;
+  outputTokens: number;
+  reasoningTokens: number;
+  cachedInputTokens?: number;
+  totalTokens: number;
+  contributions: SessionUsageContribution[];
+}
+
+/** Rolling 300-minute (5-hour) account-window usage snapshot. */
+export interface FiveHourWindow {
+  usedPercent: number;
+  windowMinutes: 300;
+  observedAt: number;
+  providerId: string;
+}
+
+/** Versioned, provider-neutral cumulative session usage ledger. */
+export interface SessionUsageLedger {
+  version: 1;
+  conversationId: string;
+  rows: SessionUsageRow[];
+  fiveHourWindow?: FiveHourWindow;
+}
+
+/** Wire-format contribution input emitted by provider adapters. */
+export interface SessionUsageContributionInput {
+  providerId: string;
+  modelId: string;
+  displayName?: string;
+  effort?: string;
+  turnId: string;
+  inputTokens: number;
+  outputTokens: number;
+  reasoningTokens: number;
+  cachedInputTokens?: number;
+  completedAt: number;
 }

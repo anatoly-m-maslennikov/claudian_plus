@@ -11,7 +11,7 @@ import {
   TOOL_WRITE_STDIN,
 } from '../../../core/tools/toolNames';
 import { extractToolResultContent } from '../../../core/tools/toolResultContent';
-import type { ChatMessage, ImageAttachment, SubagentInfo, ToolCallInfo } from '../../../core/types';
+import type { ChatMessage, ImageAttachment, SessionUsageLedger, SubagentInfo, ToolCallInfo } from '../../../core/types';
 import { t } from '../../../i18n/i18n';
 import type ClaudianPlugin from '../../../main';
 import { extractUserDisplayContent } from '../../../utils/context';
@@ -20,6 +20,8 @@ import { processFileLinks, registerFileLinkHandler } from '../../../utils/fileLi
 import { replaceImageEmbedsWithHtml } from '../../../utils/imageEmbed';
 import { escapeMathDelimitersForStreaming } from '../../../utils/markdownMath';
 import { findRewindContext } from '../rewind';
+import { SessionUsageService } from '../services/SessionUsageService';
+import { formatSessionUsage } from '../utils/sessionUsageFormat';
 import { resolveSubagentLifecycleAdapter } from './subagentLifecycleResolution';
 import {
   renderStoredAsyncSubagent,
@@ -407,6 +409,50 @@ export class MessageRenderer {
         cls: 'claudian-baked-duration',
       });
     }
+  }
+
+  /**
+   * Upsert the session usage footer on the latest assistant message's content element.
+   * Replaces any existing usage footer — never appends a second one.
+   * The footer is display-only and never part of `msg.content` or `contentBlocks`.
+   */
+  upsertSessionUsageFooter(
+    contentEl: HTMLElement | null,
+    ledger: SessionUsageLedger,
+    orchestratorProviderId: string,
+  ): void {
+    if (!contentEl) return;
+
+    // Find or create the response footer
+    let footerEl = contentEl.querySelector(':scope > .claudian-response-footer') as HTMLElement | null;
+    if (!footerEl) {
+      footerEl = contentEl.createDiv({ cls: 'claudian-response-footer' });
+    }
+
+    // Remove any existing session usage span (replace, never duplicate)
+    const existing = footerEl.querySelector('.claudian-session-usage');
+    if (existing) existing.remove();
+
+    // Build display rows
+    const service = new SessionUsageService();
+    const rows = service.getDisplayRows(ledger, orchestratorProviderId);
+    if (rows.length === 0) return;
+
+    const providerDisplayNames: Record<string, string> = {
+      codex: 'Codex',
+      opencode: 'OpenCode',
+      'opencode-go': 'OpenCode Go',
+      claude: 'Claude',
+      pi: 'Pi',
+    };
+
+    const text = formatSessionUsage(rows, providerDisplayNames, ledger);
+    if (!text) return;
+
+    footerEl.createSpan({
+      cls: 'claudian-session-usage',
+      text: `\n${text}`,
+    });
   }
 
   /**

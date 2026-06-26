@@ -22,7 +22,7 @@ import {
   TOOL_WRITE,
 } from '../../../core/tools/toolNames';
 import { extractToolResultContent } from '../../../core/tools/toolResultContent';
-import type { ChatMessage, StreamChunk, SubagentInfo, ToolCallInfo } from '../../../core/types';
+import type { ChatMessage, SessionUsageContributionInput, StreamChunk, SubagentInfo, ToolCallInfo } from '../../../core/types';
 import type { SDKToolUseResult } from '../../../core/types/diff';
 import type ClaudianPlugin from '../../../main';
 import {
@@ -58,9 +58,12 @@ import {
   finalizeWriteEditBlock,
   updateWriteEditWithDiff,
 } from '../rendering/WriteEditRenderer';
+import type { SessionUsageService } from '../services/SessionUsageService';
 import type { SubagentManager } from '../services/SubagentManager';
+import { type ParsedWorkerUsageMarker,parseWorkerUsageMarkers, stripWorkerUsageMarkers } from '../services/WorkerUsageMarkerParser';
 import type { ChatState } from '../state/ChatState';
 import type { FileContextManager } from '../ui/FileContext';
+import type { StatusPanel } from '../ui/StatusPanel';
 
 export interface StreamControllerDeps {
   plugin: ClaudianPlugin;
@@ -72,6 +75,10 @@ export interface StreamControllerDeps {
   updateQueueIndicator: () => void;
   /** Get the agent service from the tab. */
   getAgentService?: () => ChatRuntime | null;
+  /** Get the status panel (for session usage rendering). */
+  getStatusPanel?: () => StatusPanel | null;
+  /** Get the session usage service (for ledger updates). */
+  getSessionUsageService?: () => SessionUsageService | null;
 }
 
 export class StreamController {
@@ -99,6 +106,50 @@ export class StreamController {
 
   private getActiveProviderId(): ProviderId {
     return this.deps.getAgentService?.()?.providerId ?? DEFAULT_CHAT_PROVIDER_ID;
+  }
+
+  private applyDelegatedWorkerUsage(
+    marker: ParsedWorkerUsageMarker,
+    msg: ChatMessage,
+  ): void {
+    const { state } = this.deps;
+    const conversationId = state.currentConversationId;
+    if (!conversationId) return;
+    const conversation = this.deps.plugin.getConversationSync(conversationId);
+    if (!conversation) return;
+
+    const service = this.deps.getSessionUsageService?.();
+    if (!service) return;
+
+    let ledger = conversation.sessionUsage ?? service.createLedger(conversation.id);
+    const turnId = msg.id;
+
+    const contribution: SessionUsageContributionInput = {
+      providerId: marker.providerId,
+      modelId: marker.modelId,
+      ...(marker.effort ? { effort: marker.effort } : {}),
+      turnId: `${turnId}:${marker.workerSessionId}:${marker.phase ?? 'default'}`,
+      inputTokens: marker.inputTokens,
+      outputTokens: marker.outputTokens,
+      reasoningTokens: marker.reasoningTokens,
+      ...(marker.cachedInputTokens && marker.cachedInputTokens > 0
+        ? { cachedInputTokens: marker.cachedInputTokens }
+        : {}),
+      completedAt: Date.now(),
+    };
+
+    const result = service.applyContribution(ledger, contribution, 'delegated-worker');
+    if (result.changed) {
+      ledger = result.ledger;
+      conversation.sessionUsage = ledger;
+      state.sessionUsageLedger = ledger;
+      this.deps.renderer.upsertSessionUsageFooter(
+        state.currentContentEl,
+        ledger,
+        this.getActiveProviderId(),
+      );
+      this.deps.getStatusPanel?.()?.renderSessionUsage(ledger);
+    }
   }
 
   private getSubagentLifecycleAdapter(toolName?: string): ProviderSubagentLifecycleAdapter | null {
@@ -233,6 +284,50 @@ export class StreamController {
           state.usage = activeModel && !chunk.usage.model
             ? { ...chunk.usage, model: activeModel }
             : chunk.usage;
+        }
+        break;
+      }
+
+      case 'session_usage': {
+        const currentSessionId = this.deps.getAgentService?.()?.getSessionId() ?? null;
+        const chunkSessionId = chunk.sessionId ?? null;
+        if (
+          (chunkSessionId && currentSessionId && chunkSessionId !== currentSessionId) ||
+          (chunkSessionId && !currentSessionId)
+        ) {
+          break;
+        }
+
+        const conversationId = state.currentConversationId;
+        if (!conversationId) break;
+        const conversation = this.deps.plugin.getConversationSync(conversationId);
+        if (!conversation) break;
+
+        const service = this.deps.getSessionUsageService?.();
+        if (!service) break;
+
+        let ledger = conversation.sessionUsage ?? service.createLedger(conversation.id);
+        const contributionResult = service.applyContribution(ledger, chunk.contribution);
+        let changed = contributionResult.changed;
+        ledger = contributionResult.ledger;
+
+        if (chunk.fiveHourWindow) {
+          const windowResult = service.applyFiveHourWindow(ledger, chunk.fiveHourWindow);
+          if (windowResult.changed) {
+            ledger = windowResult.ledger;
+            changed = true;
+          }
+        }
+
+        if (changed) {
+          conversation.sessionUsage = ledger;
+          state.sessionUsageLedger = ledger;
+          this.deps.renderer.upsertSessionUsageFooter(
+            state.currentContentEl,
+            ledger,
+            this.getActiveProviderId(),
+          );
+          this.deps.getStatusPanel?.()?.renderSessionUsage(ledger);
         }
         break;
       }
@@ -601,6 +696,15 @@ export class StreamController {
     if (this.handleProviderSubagentResult(chunk, msg)) {
       this.showThinkingIndicator();
       return;
+    }
+
+    // Parse delegated worker usage markers before rendering tool result content
+    const workerMarkers = parseWorkerUsageMarkers(normalizedContent);
+    if (workerMarkers.length > 0) {
+      for (const marker of workerMarkers) {
+        this.applyDelegatedWorkerUsage(marker, msg);
+      }
+      chunk = { ...chunk, content: stripWorkerUsageMarkers(normalizedContent) };
     }
 
     // Check if tool is still pending (buffered) - render it now before applying result

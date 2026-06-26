@@ -1037,23 +1037,36 @@ describe('transformSDKMessage', () => {
         usageState,
       })]).toEqual([]);
 
-      expect([...transformSDKMessage(resultMessage, {
+      const chunks = [...transformSDKMessage(resultMessage, {
         intendedModel: 'sonnet',
         usageState,
-      })]).toEqual([
-        {
-          type: 'usage',
-          usage: {
-            model: 'sonnet',
-            inputTokens: 10,
-            cacheCreationInputTokens: 0,
-            cacheReadInputTokens: 0,
-            contextWindow: 200000,
-            contextTokens: 10,
-            percentage: 0,
-          },
+      })];
+
+      // First chunk: context usage
+      expect(chunks[0]).toEqual({
+        type: 'usage',
+        usage: {
+          model: 'sonnet',
+          inputTokens: 10,
+          cacheCreationInputTokens: 0,
+          cacheReadInputTokens: 0,
+          contextWindow: 200000,
+          contextTokens: 10,
+          percentage: 0,
         },
-      ]);
+      });
+
+      // Second chunk: session_usage contribution (inputTokens > 0 triggers emission)
+      expect(chunks[1]).toMatchObject({
+        type: 'session_usage',
+        contribution: {
+          providerId: 'claude',
+          modelId: 'sonnet',
+          inputTokens: 10,
+          outputTokens: 0,
+          reasoningTokens: 0,
+        },
+      });
     });
 
     it('ignores standard message_delta usage that only contains output tokens', () => {
@@ -1724,6 +1737,121 @@ describe('transformSDKMessage', () => {
       const results = [...transformSDKMessage(message)];
 
       expect(results).toEqual([]);
+    });
+  });
+
+  describe('session_usage contribution', () => {
+    it('emits session_usage with effort when effortLevel is set', () => {
+      const usageState = createTransformUsageState();
+      const startMessage = msg({
+        type: 'stream_event',
+        event: {
+          type: 'message_start',
+          message: {
+            usage: { input_tokens: 100, output_tokens: 50, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 },
+          },
+        },
+      });
+      const resultMessage = msg({ type: 'result', subtype: 'success', modelUsage: undefined });
+
+      for (const _ of transformSDKMessage(startMessage, { intendedModel: 'sonnet', effortLevel: 'high', usageState })) { void _; }
+      const results = [...transformSDKMessage(resultMessage, { intendedModel: 'sonnet', effortLevel: 'high', usageState })];
+
+      const su = results.find(r => r.type === 'session_usage') as any;
+      expect(su).toBeDefined();
+      expect(su.contribution.providerId).toBe('claude');
+      expect(su.contribution.modelId).toBe('sonnet');
+      expect(su.contribution.effort).toBe('high');
+    });
+
+    it('omits effort when effortLevel is off', () => {
+      const usageState = createTransformUsageState();
+      const startMessage = msg({
+        type: 'stream_event',
+        event: {
+          type: 'message_start',
+          message: {
+            usage: { input_tokens: 100, output_tokens: 50, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 },
+          },
+        },
+      });
+      const resultMessage = msg({ type: 'result', subtype: 'success', modelUsage: undefined });
+
+      for (const _ of transformSDKMessage(startMessage, { intendedModel: 'sonnet', effortLevel: 'off', usageState })) { void _; }
+      const results = [...transformSDKMessage(resultMessage, { intendedModel: 'sonnet', effortLevel: 'off', usageState })];
+
+      const su = results.find(r => r.type === 'session_usage') as any;
+      expect(su).toBeDefined();
+      expect(su.contribution.effort).toBeUndefined();
+    });
+
+    it('sets reasoningTokens to 0 (Claude does not expose reasoning)', () => {
+      const usageState = createTransformUsageState();
+      const startMessage = msg({
+        type: 'stream_event',
+        event: {
+          type: 'message_start',
+          message: {
+            usage: { input_tokens: 100, output_tokens: 50, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 },
+          },
+        },
+      });
+      const resultMessage = msg({ type: 'result', subtype: 'success', modelUsage: undefined });
+
+      for (const _ of transformSDKMessage(startMessage, { intendedModel: 'sonnet', usageState })) { void _; }
+      const results = [...transformSDKMessage(resultMessage, { intendedModel: 'sonnet', usageState })];
+
+      const su = results.find(r => r.type === 'session_usage') as any;
+      expect(su.contribution.reasoningTokens).toBe(0);
+    });
+
+    it('populates cachedInputTokens when cacheReadInputTokens > 0', () => {
+      const usageState = createTransformUsageState();
+      const startMessage = msg({
+        type: 'stream_event',
+        event: {
+          type: 'message_start',
+          message: {
+            usage: { input_tokens: 100, output_tokens: 50, cache_creation_input_tokens: 0, cache_read_input_tokens: 4096 },
+          },
+        },
+      });
+      const resultMessage = msg({ type: 'result', subtype: 'success', modelUsage: undefined });
+
+      for (const _ of transformSDKMessage(startMessage, { intendedModel: 'sonnet', usageState })) { void _; }
+      const results = [...transformSDKMessage(resultMessage, { intendedModel: 'sonnet', usageState })];
+
+      const su = results.find(r => r.type === 'session_usage') as any;
+      expect(su.contribution.cachedInputTokens).toBe(4096);
+    });
+
+    it('does not emit session_usage when input and output are both 0', () => {
+      const usageState = createTransformUsageState();
+      const resultMessage = msg({ type: 'result', subtype: 'success', modelUsage: undefined });
+
+      const results = [...transformSDKMessage(resultMessage, { intendedModel: 'sonnet', usageState })];
+
+      expect(results.find(r => r.type === 'session_usage')).toBeUndefined();
+    });
+
+    it('does not include fiveHourWindow (Claude has no rolling window)', () => {
+      const usageState = createTransformUsageState();
+      const startMessage = msg({
+        type: 'stream_event',
+        event: {
+          type: 'message_start',
+          message: {
+            usage: { input_tokens: 100, output_tokens: 50, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 },
+          },
+        },
+      });
+      const resultMessage = msg({ type: 'result', subtype: 'success', modelUsage: undefined });
+
+      for (const _ of transformSDKMessage(startMessage, { intendedModel: 'sonnet', usageState })) { void _; }
+      const results = [...transformSDKMessage(resultMessage, { intendedModel: 'sonnet', usageState })];
+
+      const su = results.find(r => r.type === 'session_usage') as any;
+      expect(su.fiveHourWindow).toBeUndefined();
     });
   });
 });

@@ -1343,10 +1343,10 @@ function parseLegacySession(records: ParsedSessionRecord[]): ChatMessage[] {
           turn = newTurn();
           break;
 
-        default:
-          break;
-      }
-    }
+    default:
+      break;
+  }
+}
   }
 
   flushTurn(turn, messages, msgIndex);
