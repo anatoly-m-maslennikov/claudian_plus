@@ -152,6 +152,20 @@
       "btnChange": "Изменить",
       "btnSet": "Назначить"
     },
+    "nextTabHotkey": {
+      "name": "Следующая вкладка",
+      "descWithKey": "Текущая клавиша: {hotkey}",
+      "descNoKey": "Клавиша не назначена",
+      "btnChange": "Изменить",
+      "btnSet": "Назначить"
+    },
+    "previousTabHotkey": {
+      "name": "Предыдущая вкладка",
+      "descWithKey": "Текущая клавиша: {hotkey}",
+      "descNoKey": "Клавиша не назначена",
+      "btnChange": "Изменить",
+      "btnSet": "Назначить"
+    },
     "slashCommands": {
       "name": "Команды и навыки",
       "desc": "Управление командами и навыками на уровне хранилища, расположенными в .claude/commands/ и .claude/skills/. Запускаются через /имя."

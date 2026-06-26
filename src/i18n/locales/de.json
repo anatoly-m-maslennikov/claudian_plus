@@ -152,6 +152,20 @@
       "btnChange": "Ändern",
       "btnSet": "Festlegen"
     },
+    "nextTabHotkey": {
+      "name": "Nächster Tab",
+      "descWithKey": "Aktuelles Tastenkürzel: {hotkey}",
+      "descNoKey": "Kein Tastenkürzel festgelegt",
+      "btnChange": "Ändern",
+      "btnSet": "Festlegen"
+    },
+    "previousTabHotkey": {
+      "name": "Vorheriger Tab",
+      "descWithKey": "Aktuelles Tastenkürzel: {hotkey}",
+      "descNoKey": "Kein Tastenkürzel festgelegt",
+      "btnChange": "Ändern",
+      "btnSet": "Festlegen"
+    },
     "slashCommands": {
       "name": "Befehle und Fähigkeiten",
       "desc": "Verwalte Vault-Befehle und -Fähigkeiten in .claude/commands/ und .claude/skills/. Ausgelöst durch /Name."

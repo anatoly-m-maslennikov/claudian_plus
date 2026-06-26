@@ -152,6 +152,20 @@
       "btnChange": "變更",
       "btnSet": "設定快捷鍵"
     },
+    "nextTabHotkey": {
+      "name": "下一個分頁",
+      "descWithKey": "目前快捷鍵：{hotkey}",
+      "descNoKey": "未設定快捷鍵",
+      "btnChange": "變更",
+      "btnSet": "設定快捷鍵"
+    },
+    "previousTabHotkey": {
+      "name": "上一個分頁",
+      "descWithKey": "目前快捷鍵：{hotkey}",
+      "descNoKey": "未設定快捷鍵",
+      "btnChange": "變更",
+      "btnSet": "設定快捷鍵"
+    },
     "slashCommands": {
       "name": "命令與技能",
       "desc": "管理儲存在 .claude/commands/ 和 .claude/skills/ 中的 Vault 級命令與技能。由 /名稱 觸發。"

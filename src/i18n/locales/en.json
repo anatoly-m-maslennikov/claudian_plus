@@ -152,6 +152,20 @@
       "btnChange": "Change",
       "btnSet": "Set hotkey"
     },
+    "nextTabHotkey": {
+      "name": "Next Tab",
+      "descWithKey": "Current hotkey: {hotkey}",
+      "descNoKey": "No hotkey set",
+      "btnChange": "Change",
+      "btnSet": "Set hotkey"
+    },
+    "previousTabHotkey": {
+      "name": "Previous Tab",
+      "descWithKey": "Current hotkey: {hotkey}",
+      "descNoKey": "No hotkey set",
+      "btnChange": "Change",
+      "btnSet": "Set hotkey"
+    },
     "slashCommands": {
       "name": "Commands and Skills",
       "desc": "Manage vault-level commands and skills stored in .claude/commands/ and .claude/skills/. Triggered by /name."

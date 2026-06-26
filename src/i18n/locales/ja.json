@@ -152,6 +152,20 @@
       "btnChange": "変更",
       "btnSet": "設定"
     },
+    "nextTabHotkey": {
+      "name": "次のタブ",
+      "descWithKey": "現在のホットキー: {hotkey}",
+      "descNoKey": "ホットキー未設定",
+      "btnChange": "変更",
+      "btnSet": "設定"
+    },
+    "previousTabHotkey": {
+      "name": "前のタブ",
+      "descWithKey": "現在のホットキー: {hotkey}",
+      "descNoKey": "ホットキー未設定",
+      "btnChange": "変更",
+      "btnSet": "設定"
+    },
     "slashCommands": {
       "name": "コマンドとスキル",
       "desc": ".claude/commands/ と .claude/skills/ に保存された Vault レベルのコマンドとスキルを管理します。/名前 でトリガーされます。"

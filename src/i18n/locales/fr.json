@@ -152,6 +152,20 @@
       "btnChange": "Modifier",
       "btnSet": "Définir"
     },
+    "nextTabHotkey": {
+      "name": "Onglet suivant",
+      "descWithKey": "Raccourci actuel : {hotkey}",
+      "descNoKey": "Aucun raccourci défini",
+      "btnChange": "Modifier",
+      "btnSet": "Définir"
+    },
+    "previousTabHotkey": {
+      "name": "Onglet précédent",
+      "descWithKey": "Raccourci actuel : {hotkey}",
+      "descNoKey": "Aucun raccourci défini",
+      "btnChange": "Modifier",
+      "btnSet": "Définir"
+    },
     "slashCommands": {
       "name": "Commandes et compétences",
       "desc": "Gérez les commandes et compétences au niveau du vault stockées dans .claude/commands/ et .claude/skills/. Déclenchées par /nom."

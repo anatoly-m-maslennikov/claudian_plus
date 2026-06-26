@@ -500,6 +500,8 @@ export class ClaudianSettingTab extends PluginSettingTab {
     addHotkeySettingRow(hotkeyGrid, this.app, 'claudian:new-session', 'settings.newSessionHotkey');
     addHotkeySettingRow(hotkeyGrid, this.app, 'claudian:new-tab', 'settings.newTabHotkey');
     addHotkeySettingRow(hotkeyGrid, this.app, 'claudian:close-current-tab', 'settings.closeTabHotkey');
+    addHotkeySettingRow(hotkeyGrid, this.app, 'claudian:next-tab', 'settings.nextTabHotkey');
+    addHotkeySettingRow(hotkeyGrid, this.app, 'claudian:previous-tab', 'settings.previousTabHotkey');
 
     // --- Environment ---
 

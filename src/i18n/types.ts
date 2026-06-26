@@ -121,6 +121,16 @@ export type TranslationKey =
   | 'settings.closeTabHotkey.descNoKey'
   | 'settings.closeTabHotkey.btnChange'
   | 'settings.closeTabHotkey.btnSet'
+  | 'settings.nextTabHotkey.name'
+  | 'settings.nextTabHotkey.descWithKey'
+  | 'settings.nextTabHotkey.descNoKey'
+  | 'settings.nextTabHotkey.btnChange'
+  | 'settings.nextTabHotkey.btnSet'
+  | 'settings.previousTabHotkey.name'
+  | 'settings.previousTabHotkey.descWithKey'
+  | 'settings.previousTabHotkey.descNoKey'
+  | 'settings.previousTabHotkey.btnChange'
+  | 'settings.previousTabHotkey.btnSet'
 
   // Settings - Commands and Skills
   | 'settings.slashCommands.name'

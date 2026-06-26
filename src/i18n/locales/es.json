@@ -152,6 +152,20 @@
       "btnChange": "Cambiar",
       "btnSet": "Configurar"
     },
+    "nextTabHotkey": {
+      "name": "Pestaña siguiente",
+      "descWithKey": "Atajo actual: {hotkey}",
+      "descNoKey": "Sin atajo configurado",
+      "btnChange": "Cambiar",
+      "btnSet": "Configurar"
+    },
+    "previousTabHotkey": {
+      "name": "Pestaña anterior",
+      "descWithKey": "Atajo actual: {hotkey}",
+      "descNoKey": "Sin atajo configurado",
+      "btnChange": "Cambiar",
+      "btnSet": "Configurar"
+    },
     "slashCommands": {
       "name": "Comandos y habilidades",
       "desc": "Administra comandos y habilidades a nivel de vault almacenados en .claude/commands/ y .claude/skills/. Activados por /nombre."

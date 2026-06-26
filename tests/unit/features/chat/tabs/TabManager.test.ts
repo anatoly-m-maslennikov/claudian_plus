@@ -602,6 +602,58 @@ describe('TabManager - Tab Queries', () => {
       expect(manager.canCreateTab()).toBe(false);
     });
   });
+
+  describe('switchToAdjacentTab', () => {
+    it('switches to the next tab (right) with wrap-around', async () => {
+      const manager = createManager({});
+      const tab1 = await manager.createTab();
+      const tab2 = await manager.createTab();
+      const tab3 = await manager.createTab();
+      const ids = [tab1!.id, tab2!.id, tab3!.id];
+
+      // tab1 is active (last created becomes active, but createTab activates)
+      // Switch to tab1 explicitly to set a known starting point
+      await manager.switchToTab(tab1!.id);
+
+      await manager.switchToAdjacentTab(1);
+      expect(manager.getActiveTabId()).toBe(ids[1]);
+
+      await manager.switchToAdjacentTab(1);
+      expect(manager.getActiveTabId()).toBe(ids[2]);
+
+      // Wrap around from last to first
+      await manager.switchToAdjacentTab(1);
+      expect(manager.getActiveTabId()).toBe(ids[0]);
+    });
+
+    it('switches to the previous tab (left) with wrap-around', async () => {
+      const manager = createManager({});
+      const tab1 = await manager.createTab();
+      const tab2 = await manager.createTab();
+      const tab3 = await manager.createTab();
+      const ids = [tab1!.id, tab2!.id, tab3!.id];
+
+      await manager.switchToTab(tab3!.id);
+
+      await manager.switchToAdjacentTab(-1);
+      expect(manager.getActiveTabId()).toBe(ids[1]);
+
+      await manager.switchToAdjacentTab(-1);
+      expect(manager.getActiveTabId()).toBe(ids[0]);
+
+      // Wrap around from first to last
+      await manager.switchToAdjacentTab(-1);
+      expect(manager.getActiveTabId()).toBe(ids[2]);
+    });
+
+    it('does nothing with only one tab', async () => {
+      const manager = createManager({});
+      const tab1 = await manager.createTab();
+
+      await manager.switchToAdjacentTab(1);
+      expect(manager.getActiveTabId()).toBe(tab1!.id);
+    });
+  });
 });
 
 describe('TabManager - Tab Bar Data', () => {

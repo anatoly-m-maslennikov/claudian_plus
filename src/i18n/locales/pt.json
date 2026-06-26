@@ -152,6 +152,20 @@
       "btnChange": "Alterar",
       "btnSet": "Definir"
     },
+    "nextTabHotkey": {
+      "name": "Próxima aba",
+      "descWithKey": "Atalho atual: {hotkey}",
+      "descNoKey": "Nenhum atalho definido",
+      "btnChange": "Alterar",
+      "btnSet": "Definir"
+    },
+    "previousTabHotkey": {
+      "name": "Aba anterior",
+      "descWithKey": "Atalho atual: {hotkey}",
+      "descNoKey": "Nenhum atalho definido",
+      "btnChange": "Alterar",
+      "btnSet": "Definir"
+    },
     "slashCommands": {
       "name": "Comandos e habilidades",
       "desc": "Gerencie comandos e habilidades a nível de vault armazenados em .claude/commands/ e .claude/skills/. Acionados por /nome."

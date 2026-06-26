@@ -175,6 +175,36 @@ export default class ClaudianPlugin extends Plugin {
       },
     });
 
+    this.addCommand({
+      id: 'next-tab',
+      name: 'Switch to next tab',
+      checkCallback: (checking: boolean) => {
+        const view = this.getView();
+        if (!view) return false;
+        const tabManager = view.getTabManager();
+        if (!tabManager || tabManager.getTabCount() < 2) return false;
+        if (!checking) {
+          void tabManager.switchToAdjacentTab(1);
+        }
+        return true;
+      },
+    });
+
+    this.addCommand({
+      id: 'previous-tab',
+      name: 'Switch to previous tab',
+      checkCallback: (checking: boolean) => {
+        const view = this.getView();
+        if (!view) return false;
+        const tabManager = view.getTabManager();
+        if (!tabManager || tabManager.getTabCount() < 2) return false;
+        if (!checking) {
+          void tabManager.switchToAdjacentTab(-1);
+        }
+        return true;
+      },
+    });
+
     this.addSettingTab(new ClaudianSettingTab(this.app, this));
   }
 
