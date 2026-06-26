@@ -682,6 +682,50 @@ describe('TabManager - Tab Bar Data', () => {
 
       expect(items[0].providerId).toBe('codex');
     });
+
+    it('defaults showTitle to true when showTabTitles setting is unset', async () => {
+      manager = createManager({
+        plugin: createMockPlugin({
+          settings: { showTabTitles: undefined },
+        }),
+      });
+
+      await manager.createTab();
+
+      const items = manager.getTabBarItems();
+
+      expect(items[0].showTitle).toBe(true);
+    });
+
+    it('reflects showTabTitles=false on tab bar items', async () => {
+      manager = createManager({
+        plugin: createMockPlugin({
+          settings: { showTabTitles: false },
+        }),
+      });
+
+      await manager.createTab();
+      await manager.createTab();
+
+      const items = manager.getTabBarItems();
+
+      expect(items[0].showTitle).toBe(false);
+      expect(items[1].showTitle).toBe(false);
+    });
+
+    it('reflects showTabTitles=true on tab bar items', async () => {
+      manager = createManager({
+        plugin: createMockPlugin({
+          settings: { showTabTitles: true },
+        }),
+      });
+
+      await manager.createTab();
+
+      const items = manager.getTabBarItems();
+
+      expect(items[0].showTitle).toBe(true);
+    });
   });
 });
 

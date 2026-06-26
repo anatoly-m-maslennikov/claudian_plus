@@ -285,6 +285,10 @@
       "desc": "Nombre maximum d'onglets de chat simultanés (3-10). Chaque onglet utilise une session Claude séparée.",
       "warning": "Plus de 5 onglets peut affecter les performances et l'utilisation de la mémoire."
     },
+    "showTabTitles": {
+      "name": "Afficher les titres d'onglets",
+      "desc": "Étiqueter les onglets de chat avec les titres de conversation au lieu de numéros. Double-cliquez sur un onglet pour basculer son étiquette."
+    },
     "enableAutoScroll": {
       "name": "Défilement automatique pendant le streaming",
       "desc": "Défiler automatiquement vers le bas pendant que Claude diffuse les réponses. Désactiver pour rester en haut et lire depuis le début."

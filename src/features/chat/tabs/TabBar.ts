@@ -2,6 +2,7 @@ import { scheduleAnimationFrame } from '../../../utils/animationFrame';
 import type { TabBarItem, TabId } from './types';
 
 const EXPANDED_TITLE_MAX_LENGTH = 32;
+const DEFAULT_TITLE_MAX_LENGTH = 16;
 const TRUNCATED_TITLE_SUFFIX = '...';
 
 /** Callbacks for TabBar interactions. */
@@ -72,10 +73,12 @@ export class TabBar {
     }
 
     const isTitleExpanded = this.expandedTitleTabIds.has(item.id);
+    const isTitled = item.showTitle && !isTitleExpanded;
     const badgeEl = this.containerEl.createDiv({
       cls: [
         'claudian-tab-badge',
         stateClass,
+        isTitled ? 'claudian-tab-badge--titled' : '',
         isTitleExpanded ? 'claudian-tab-badge-expanded' : '',
       ].filter(Boolean).join(' '),
       text: this.getBadgeLabel(item),
@@ -155,25 +158,29 @@ export class TabBar {
     }
 
     const isTitleExpanded = this.expandedTitleTabIds.has(item.id);
+    const isTitled = item.showTitle && !isTitleExpanded;
     badgeEl.textContent = this.getBadgeLabel(item);
+    badgeEl.toggleClass('claudian-tab-badge--titled', isTitled);
     badgeEl.toggleClass('claudian-tab-badge-expanded', isTitleExpanded);
     badgeEl.setAttribute('data-title-expanded', isTitleExpanded ? 'true' : 'false');
   }
 
   private getBadgeLabel(item: TabBarItem): string {
-    if (!this.expandedTitleTabIds.has(item.id)) {
-      return String(item.index);
+    if (this.expandedTitleTabIds.has(item.id)) {
+      return this.truncateTitle(item.title, EXPANDED_TITLE_MAX_LENGTH);
     }
-
-    return this.truncateExpandedTitle(item.title);
+    if (item.showTitle) {
+      return this.truncateTitle(item.title, DEFAULT_TITLE_MAX_LENGTH);
+    }
+    return String(item.index);
   }
 
-  private truncateExpandedTitle(title: string): string {
+  private truncateTitle(title: string, maxLength: number): string {
     const chars = Array.from(title);
-    if (chars.length <= EXPANDED_TITLE_MAX_LENGTH) {
+    if (chars.length <= maxLength) {
       return title;
     }
 
-    return `${chars.slice(0, EXPANDED_TITLE_MAX_LENGTH - TRUNCATED_TITLE_SUFFIX.length).join('')}${TRUNCATED_TITLE_SUFFIX}`;
+    return `${chars.slice(0, maxLength - TRUNCATED_TITLE_SUFFIX.length).join('')}${TRUNCATED_TITLE_SUFFIX}`;
   }
 }

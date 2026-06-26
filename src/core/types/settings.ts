@@ -139,6 +139,7 @@ export interface ClaudianSettings {
 
   // UI preferences
   maxTabs: number;
+  showTabTitles: boolean;
   enableAutoScroll: boolean;
   deferMathRenderingDuringStreaming: boolean;
   expandFileEditsByDefault: boolean;

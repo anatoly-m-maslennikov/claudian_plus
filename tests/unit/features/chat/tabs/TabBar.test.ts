@@ -19,6 +19,7 @@ function createTabBarItem(overrides: Partial<TabBarItem> = {}): TabBarItem {
     index: 1,
     title: 'Test Tab',
     providerId: 'claude',
+    showTitle: false,
     isActive: false,
     isStreaming: false,
     needsAttention: false,
@@ -209,6 +210,149 @@ describe('TabBar', () => {
       ]);
 
       expect(containerEl.scrollLeft).toBe(96);
+    });
+  });
+
+  describe('title badges (showTitle)', () => {
+    it('renders a truncated title by default when showTitle is true', () => {
+      const containerEl = createMockEl();
+      const callbacks = createMockCallbacks();
+      const tabBar = new TabBar(containerEl, callbacks);
+
+      tabBar.update([createTabBarItem({ showTitle: true, title: 'Refactor auth flow' })]);
+
+      expect(containerEl._children[0].textContent).toBe('Refactor auth...');
+    });
+
+    it('renders the full title when short enough', () => {
+      const containerEl = createMockEl();
+      const callbacks = createMockCallbacks();
+      const tabBar = new TabBar(containerEl, callbacks);
+
+      tabBar.update([createTabBarItem({ showTitle: true, title: 'Bug fix' })]);
+
+      expect(containerEl._children[0].textContent).toBe('Bug fix');
+    });
+
+    it('applies the --titled modifier class when showTitle is true and not expanded', () => {
+      const containerEl = createMockEl();
+      const callbacks = createMockCallbacks();
+      const tabBar = new TabBar(containerEl, callbacks);
+
+      tabBar.update([createTabBarItem({ showTitle: true, title: 'Refactor auth flow' })]);
+
+      expect(containerEl._children[0].hasClass('claudian-tab-badge--titled')).toBe(true);
+      expect(containerEl._children[0].hasClass('claudian-tab-badge-expanded')).toBe(false);
+    });
+
+    it('does not apply the --titled class when showTitle is false', () => {
+      const containerEl = createMockEl();
+      const callbacks = createMockCallbacks();
+      const tabBar = new TabBar(containerEl, callbacks);
+
+      tabBar.update([createTabBarItem({ showTitle: false, index: 7 })]);
+
+      expect(containerEl._children[0].hasClass('claudian-tab-badge--titled')).toBe(false);
+      expect(containerEl._children[0].textContent).toBe('7');
+    });
+
+    it('expands a titled badge to the 32-char limit on double click', () => {
+      const containerEl = createMockEl();
+      const callbacks = createMockCallbacks();
+      const tabBar = new TabBar(containerEl, callbacks);
+      const longTitle = 'A'.repeat(40);
+
+      tabBar.update([createTabBarItem({ showTitle: true, title: longTitle })]);
+      containerEl._children[0].dispatchEvent('dblclick', {
+        preventDefault: jest.fn(),
+        stopPropagation: jest.fn(),
+      });
+
+      const badge = containerEl._children[0];
+      expect(badge.textContent).toBe(`${'A'.repeat(29)}...`);
+      expect(badge.hasClass('claudian-tab-badge--titled')).toBe(false);
+      expect(badge.hasClass('claudian-tab-badge-expanded')).toBe(true);
+      expect(badge.getAttribute('data-title-expanded')).toBe('true');
+    });
+
+    it('returns to the 16-char titled mode after toggling expanded off', () => {
+      const containerEl = createMockEl();
+      const callbacks = createMockCallbacks();
+      const tabBar = new TabBar(containerEl, callbacks);
+      const longTitle = 'A'.repeat(40);
+
+      tabBar.update([createTabBarItem({ showTitle: true, title: longTitle })]);
+      const badge = containerEl._children[0];
+      // expand
+      badge.dispatchEvent('dblclick', { preventDefault: jest.fn(), stopPropagation: jest.fn() });
+      // collapse
+      badge.dispatchEvent('dblclick', { preventDefault: jest.fn(), stopPropagation: jest.fn() });
+
+      expect(badge.textContent).toBe(`${'A'.repeat(13)}...`);
+      expect(badge.hasClass('claudian-tab-badge--titled')).toBe(true);
+      expect(badge.hasClass('claudian-tab-badge-expanded')).toBe(false);
+      expect(badge.getAttribute('data-title-expanded')).toBe('false');
+    });
+
+    it('still expands to the full title when showTitle is false (existing behavior)', () => {
+      const containerEl = createMockEl();
+      const callbacks = createMockCallbacks();
+      const tabBar = new TabBar(containerEl, callbacks);
+
+      tabBar.update([createTabBarItem({ showTitle: false, index: 2, title: 'My Conversation' })]);
+      const badge = containerEl._children[0];
+
+      expect(badge.textContent).toBe('2');
+
+      badge.dispatchEvent('dblclick', { preventDefault: jest.fn(), stopPropagation: jest.fn() });
+
+      expect(badge.textContent).toBe('My Conversation');
+      expect(badge.hasClass('claudian-tab-badge-expanded')).toBe(true);
+      expect(badge.hasClass('claudian-tab-badge--titled')).toBe(false);
+    });
+
+    it('preserves expanded state across update() calls when showTitle is true', () => {
+      const containerEl = createMockEl();
+      const callbacks = createMockCallbacks();
+      const tabBar = new TabBar(containerEl, callbacks);
+
+      tabBar.update([createTabBarItem({ id: 'tab-1', showTitle: true, title: 'First Title' })]);
+      containerEl._children[0].dispatchEvent('dblclick', {
+        preventDefault: jest.fn(),
+        stopPropagation: jest.fn(),
+      });
+
+      tabBar.update([createTabBarItem({ id: 'tab-1', showTitle: true, title: 'Renamed Title' })]);
+
+      const badge = containerEl._children[0];
+      expect(badge.textContent).toBe('Renamed Title');
+      expect(badge.hasClass('claudian-tab-badge-expanded')).toBe(true);
+      expect(badge.hasClass('claudian-tab-badge--titled')).toBe(false);
+      expect(badge.getAttribute('data-title-expanded')).toBe('true');
+    });
+
+    it('does not truncate a title that is exactly 16 chars', () => {
+      const containerEl = createMockEl();
+      const callbacks = createMockCallbacks();
+      const tabBar = new TabBar(containerEl, callbacks);
+      const title = '1234567890123456';
+
+      tabBar.update([createTabBarItem({ showTitle: true, title })]);
+
+      expect(containerEl._children[0].textContent).toBe('1234567890123456');
+    });
+
+    it('truncates a 17-char title to 16 chars total with ellipsis suffix', () => {
+      const containerEl = createMockEl();
+      const callbacks = createMockCallbacks();
+      const tabBar = new TabBar(containerEl, callbacks);
+      const title = '12345678901234567';
+
+      tabBar.update([createTabBarItem({ showTitle: true, title })]);
+
+      // 16-char cap = 13 leading chars + 3-char '...' suffix = 16 total
+      expect(containerEl._children[0].textContent).toBe('1234567890123...');
+      expect(containerEl._children[0].textContent.length).toBe(16);
     });
   });
 

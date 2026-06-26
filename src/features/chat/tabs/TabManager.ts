@@ -404,6 +404,7 @@ export class TabManager implements TabManagerInterface {
         index: index++,
         title: getTabTitle(tab, this.plugin),
         providerId: getTabProviderId(tab, this.plugin),
+        showTitle: this.plugin.settings.showTabTitles ?? true,
         isActive: tab.id === this.activeTabId,
         isStreaming: tab.state.isStreaming,
         needsAttention: tab.state.needsAttention,

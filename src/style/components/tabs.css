@@ -56,6 +56,14 @@
   padding: 0 8px;
 }
 
+.claudian-tab-badge--titled {
+  flex: 0 0 auto;
+  justify-content: flex-start;
+  width: auto;
+  max-width: 140px;
+  padding: 0 6px;
+}
+
 .claudian-tab-badge:hover {
   background: var(--background-modifier-hover);
   color: var(--text-normal);

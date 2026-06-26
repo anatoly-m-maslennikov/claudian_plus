@@ -45,6 +45,7 @@ export const DEFAULT_CLAUDIAN_SETTINGS: ClaudianSettings = {
   lastCustomModel: '',
 
   maxTabs: 3,
+  showTabTitles: true,
   enableAutoScroll: true,
   deferMathRenderingDuringStreaming: true,
   expandFileEditsByDefault: false,

@@ -11,6 +11,7 @@ import type { NavigationController } from '../controllers/NavigationController';
 import type { SelectionController } from '../controllers/SelectionController';
 import type { StreamController } from '../controllers/StreamController';
 import type { MessageRenderer } from '../rendering/MessageRenderer';
+import type { SessionUsageService } from '../services/SessionUsageService';
 import type { SubagentManager } from '../services/SubagentManager';
 import type { ChatState } from '../state/ChatState';
 import type { BangBashModeManager } from '../ui/BangBashModeManager';
@@ -108,6 +109,7 @@ export interface TabServices {
   subagentManager: SubagentManager;
   instructionRefineService: InstructionRefineService | null;
   titleGenerationService: TitleGenerationService | null;
+  sessionUsageService: SessionUsageService;
 }
 
 /**
@@ -280,6 +282,8 @@ export interface TabBarItem {
   index: number;
   title: string;
   providerId: ProviderId;
+  /** When true, badge shows the truncated title (per showTabTitles setting); when false, shows the index. */
+  showTitle: boolean;
   isActive: boolean;
   isStreaming: boolean;
   needsAttention: boolean;

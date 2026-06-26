@@ -237,6 +237,21 @@ export class ClaudianSettingTab extends PluginSettingTab {
     });
 
     new Setting(container)
+      .setName(t('settings.showTabTitles.name'))
+      .setDesc(t('settings.showTabTitles.desc'))
+      .addToggle((toggle) =>
+        toggle
+          .setValue(this.plugin.settings.showTabTitles ?? true)
+          .onChange(async (value) => {
+            this.plugin.settings.showTabTitles = value;
+            await this.plugin.saveSettings();
+            for (const view of this.plugin.getAllViews()) {
+              view.refreshTabControls();
+            }
+          })
+      );
+
+    new Setting(container)
       .setName(t('settings.chatViewPlacement.name'))
       .setDesc(t('settings.chatViewPlacement.desc'))
       .addDropdown((dropdown) => {
