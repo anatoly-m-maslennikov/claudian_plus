@@ -312,6 +312,30 @@ export class TabManager implements TabManagerInterface {
   }
 
   /**
+   * Move a tab to a new position in the tab order.
+   * @param tabId The tab to move.
+   * @param toIndex The zero-based target position.
+   */
+  moveTab(tabId: TabId, toIndex: number): void {
+    const tab = this.tabs.get(tabId);
+    if (!tab) return;
+    const ids = Array.from(this.tabs.keys());
+    if (toIndex < 0 || toIndex >= ids.length) return;
+    const currentIndex = ids.indexOf(tabId);
+    if (currentIndex === -1 || currentIndex === toIndex) return;
+
+    ids.splice(currentIndex, 1);
+    ids.splice(toIndex, 0, tabId);
+
+    const newTabs = new Map<TabId, TabData>();
+    for (const id of ids) {
+      const t = this.tabs.get(id);
+      if (t) newTabs.set(id, t);
+    }
+    this.tabs = newTabs;
+  }
+
+  /**
    * Closes a tab.
    * @param tabId The tab to close.
    * @param force If true, close even if streaming.

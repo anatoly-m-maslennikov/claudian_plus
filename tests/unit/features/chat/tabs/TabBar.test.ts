@@ -10,6 +10,7 @@ function createMockCallbacks(): TabBarCallbacks {
     onTabClose: jest.fn(),
     onNewTab: jest.fn(),
     onTabContextMenu: jest.fn(),
+    onTabMove: jest.fn(),
   };
 }
 

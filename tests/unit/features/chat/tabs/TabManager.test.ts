@@ -654,6 +654,47 @@ describe('TabManager - Tab Queries', () => {
       expect(manager.getActiveTabId()).toBe(tab1!.id);
     });
   });
+
+  describe('moveTab', () => {
+    it('moves tab to a new position', async () => {
+      const manager = createManager({});
+      const tab1 = await manager.createTab();
+      const tab2 = await manager.createTab();
+      const tab3 = await manager.createTab();
+      const ids = [tab1!.id, tab2!.id, tab3!.id];
+
+      manager.moveTab(ids[0], 2);
+      expect(Array.from((manager as any).tabs.keys())).toEqual([ids[1], ids[2], ids[0]]);
+    });
+
+    it('does nothing when moving to same position', async () => {
+      const manager = createManager({});
+      const tab1 = await manager.createTab();
+      const tab2 = await manager.createTab();
+      const ids = [tab1!.id, tab2!.id];
+
+      manager.moveTab(ids[0], 0);
+      expect(Array.from((manager as any).tabs.keys())).toEqual(ids);
+    });
+
+    it('does nothing for unknown tab', async () => {
+      const manager = createManager({});
+      const tab1 = await manager.createTab();
+
+      manager.moveTab('nonexistent', 0);
+      expect(Array.from((manager as any).tabs.keys())).toEqual([tab1!.id]);
+    });
+
+    it('does nothing for out-of-bounds index', async () => {
+      const manager = createManager({});
+      const tab1 = await manager.createTab();
+      const tab2 = await manager.createTab();
+      const ids = [tab1!.id, tab2!.id];
+
+      manager.moveTab(ids[0], 5);
+      expect(Array.from((manager as any).tabs.keys())).toEqual(ids);
+    });
+  });
 });
 
 describe('TabManager - Tab Bar Data', () => {

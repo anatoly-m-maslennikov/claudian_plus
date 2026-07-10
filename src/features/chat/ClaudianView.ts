@@ -316,6 +316,14 @@ export class ClaudianView extends ItemView {
       onTabContextMenu: (tabId, item, e) => {
         this.showTabContextMenu(tabId, item, e);
       },
+      onTabMove: (fromIndex, toIndex) => {
+        if (!this.tabManager) return;
+        const items = this.tabManager.getTabBarItems();
+        if (fromIndex >= 0 && fromIndex < items.length && toIndex >= 0 && toIndex < items.length) {
+          this.tabManager.moveTab(items[fromIndex].id, toIndex);
+          this.updateTabBar();
+        }
+      },
     });
     fragment.appendChild(this.tabBarContainerEl);
 

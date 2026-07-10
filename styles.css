@@ -278,6 +278,15 @@ body.theme-dark .claudian-provider-icon-variant--dark {
   border-color: var(--background-modifier-border);
 }
 
+.claudian-tab-badge-dragging {
+  opacity: 0.4;
+}
+
+.claudian-tab-badge-drag-over {
+  border-color: var(--interactive-accent);
+  border-style: dashed;
+}
+
 .claudian-tab-content-container {
   display: flex;
   flex-direction: column;

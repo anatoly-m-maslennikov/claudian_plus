@@ -18,6 +18,9 @@ export interface TabBarCallbacks {
 
   /** Called when the context menu is requested on a tab. */
   onTabContextMenu: (tabId: TabId, item: TabBarItem, event: MouseEvent) => void;
+
+  /** Called when a tab is dragged to a new position. */
+  onTabMove: (fromIndex: number, toIndex: number) => void;
 }
 
 /**
@@ -28,6 +31,8 @@ export class TabBar {
   private callbacks: TabBarCallbacks;
   private expandedTitleTabIds = new Set<TabId>();
   private lastKnownScrollLeft = 0;
+  private dragTabId: TabId | null = null;
+  private dragOverTabId: TabId | null = null;
   private readonly handleScroll = (): void => {
     this.captureScrollPosition();
   };
@@ -88,6 +93,7 @@ export class TabBar {
     });
 
     // Obsidian uses aria-label for hover tooltips here; adding title causes duplicate tooltip text.
+    badgeEl.setAttribute('data-tab-id', item.id);
     badgeEl.setAttribute('aria-label', item.title);
     badgeEl.setAttribute('data-provider', item.providerId);
     badgeEl.setAttribute('data-title-expanded', isTitleExpanded ? 'true' : 'false');
@@ -109,6 +115,71 @@ export class TabBar {
       e.preventDefault();
       this.callbacks.onTabContextMenu(item.id, item, e);
     });
+
+    // Drag-and-drop tab reordering
+    badgeEl.setAttribute('draggable', 'true');
+
+    badgeEl.addEventListener('dragstart', (e) => {
+      this.dragTabId = item.id;
+      badgeEl.addClass('claudian-tab-badge-dragging');
+      if (e.dataTransfer) {
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', item.id);
+      }
+    });
+
+    badgeEl.addEventListener('dragend', () => {
+      badgeEl.removeClass('claudian-tab-badge-dragging');
+      this.clearDragOverStyles();
+      this.dragTabId = null;
+      this.dragOverTabId = null;
+    });
+
+    badgeEl.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      if (!this.dragTabId || this.dragTabId === item.id) return;
+      if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+      this.dragOverTabId = item.id;
+      badgeEl.addClass('claudian-tab-badge-drag-over');
+    });
+
+    badgeEl.addEventListener('dragleave', () => {
+      badgeEl.removeClass('claudian-tab-badge-drag-over');
+    });
+
+    badgeEl.addEventListener('drop', (e) => {
+      e.preventDefault();
+      this.clearDragOverStyles();
+      if (!this.dragTabId || this.dragTabId === item.id) return;
+
+      const draggedEl = this.findBadgeById(this.dragTabId);
+      const targetEl = badgeEl;
+      if (draggedEl && targetEl) {
+        const children = Array.from(this.containerEl.children);
+        const from = children.indexOf(draggedEl);
+        const to = children.indexOf(targetEl);
+        if (from !== -1 && to !== -1 && from !== to) {
+          this.callbacks.onTabMove(from, to);
+        }
+      }
+      this.dragTabId = null;
+      this.dragOverTabId = null;
+    });
+  }
+
+  private findBadgeById(tabId: TabId): HTMLElement | null {
+    for (const child of Array.from(this.containerEl.children)) {
+      if (child.getAttribute('data-tab-id') === tabId) {
+        return child as HTMLElement;
+      }
+    }
+    return null;
+  }
+
+  private clearDragOverStyles(): void {
+    for (const child of Array.from(this.containerEl.children)) {
+      child.removeClass('claudian-tab-badge-drag-over');
+    }
   }
 
   /** Destroys the tab bar. */
