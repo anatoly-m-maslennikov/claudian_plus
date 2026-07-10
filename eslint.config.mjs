@@ -101,7 +101,19 @@ export default defineConfig([
     plugins: {
       obsidianmd,
     },
-    rules: stagedObsidianRules,
+    rules: {
+      ...stagedObsidianRules,
+      'max-lines-per-function': [
+        'warn',
+        {
+          max: 80,
+          skipComments: true,
+          skipBlankLines: true,
+          IIFEs: true,
+        },
+      ],
+      complexity: ['warn', 15],
+    },
   },
   {
     files: [
@@ -126,6 +138,26 @@ export default defineConfig([
             {
               group: ['./ClaudianView', '../ClaudianView'],
               message: 'Service and shared modules must not import the view.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ['src/core/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['../../providers/*', '../../providers/**/*'],
+              message: 'core/ is the pure domain layer — must not import provider implementations. Import provider contracts from core/providers/ instead.',
+            },
+            {
+              group: ['../../features/*', '../../features/**/*'],
+              message: 'core/ is the pure domain layer — must not import app orchestration (features/).',
             },
           ],
         },

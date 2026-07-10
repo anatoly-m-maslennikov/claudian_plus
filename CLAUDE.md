@@ -78,3 +78,30 @@ Tests mirror the `src/` layout under `tests/unit/` and `tests/integration/`.
 - Run `npm run typecheck && npm run lint && npm run test && npm run build` after editing.
 - No `console.*` in production code.
 - Put non-committed notes, handoff files, and throwaway scripts in `.context/`.
+
+## Build Standard (Layered Build — adapted from 05_Methodology)
+
+### Layering (purity gate enforced via ESLint)
+
+| Layer | Contains | Rule |
+|-------|----------|------|
+| `core/` | Provider-neutral contracts, types, domain logic | Must NOT import from `providers/` (implementations) or `features/` (app orchestration). Import provider contracts from `core/providers/` only. |
+| `providers/` | One module per external system (Claude, Codex, OpenCode, Pi) | Adapters — wire-format ↔ domain mapping. May import `core/` contracts. |
+| `features/` | App orchestration — view, controllers, renderers, tabs | Orchestration only — decisions on plain data belong in `core/`. May import `core/` and `providers/`. |
+
+### Four load-bearing rules (from 04_Methodology §2)
+
+1. **Functional core, imperative shell + DI** — `core/` is pure domain logic (no I/O, no DOM, no Obsidian API). `providers/` are adapters behind ports. `features/` wires them together. ESLint `no-restricted-imports` enforces the boundary.
+2. **Reconcile against source of truth** — `OpencodeSqliteReader` reconciles session usage from SQLite; `CodexHistoryStore` reconciles from JSONL transcripts. Idempotent re-derivation, not in-memory caching.
+3. **Observe progress, never trust a foreign clock** — token deltas computed from `previousCumulativeTotal` tracked locally, not from provider timestamps. Liveness from observed state transitions, not wall-clock.
+4. **Error is never empty data** — a false-empty masquerades as legitimate "no data". Distinguish "not yet loaded" from "loaded but empty" in all reconciliation paths.
+
+### Small-function gate (ESLint, advisory)
+
+- `max-lines-per-function: 80` (skipComments, skipBlankLines) — `warn`
+- `complexity: 15` — `warn`
+- Existing code has warnings; new code should stay under thresholds or extract helpers.
+
+### Spec → Eval → Impl pipeline
+
+Specs in `claudian_plus_specs/1 - Spec/`. Eval/test plans in `claudian_plus_specs/2 - Eval Plan/`. Implementation plans in `claudian_plus_specs/2 - Implementation Plan/`. Tests mirror `src/` layout under `tests/`.
