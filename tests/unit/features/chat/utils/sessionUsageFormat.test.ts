@@ -61,7 +61,7 @@ describe('sessionUsageFormat', () => {
       expect(result).toContain('66k tokens');
     });
 
-    it('includes cost segment when 300-min window exists', () => {
+    it('does not include cost segment even when 300-min window exists', () => {
       const row = makeRow();
       const ledger: SessionUsageLedger = {
         version: 1,
@@ -75,30 +75,15 @@ describe('sessionUsageFormat', () => {
         },
       };
       const result = formatSessionUsageRow(row, 'Codex', ledger);
-      expect(result).toContain('; cost: 14%/5h');
+      expect(result).not.toContain('cost:');
+      expect(result).not.toContain('%/5h');
     });
 
-    it('omits cost when window is absent', () => {
-      const row = makeRow();
+    it('omits name segment when both displayName and modelId are empty', () => {
+      const row = makeRow({ displayName: undefined, modelId: '' });
       const result = formatSessionUsageRow(row, 'Codex');
-      expect(result).not.toContain('; cost:');
-    });
-
-    it('omits cost when window is non-300-min', () => {
-      const row = makeRow();
-      const ledger = {
-        version: 1 as const,
-        conversationId: 'conv-1',
-        rows: [row],
-        fiveHourWindow: {
-          usedPercent: 14,
-          windowMinutes: 60 as 300, // type cast for test
-          observedAt: Date.now(),
-          providerId: 'codex',
-        },
-      };
-      const result = formatSessionUsageRow(row, 'Codex', ledger);
-      expect(result).not.toContain('; cost:');
+      expect(result).toContain('- Codex');
+      expect(result).not.toContain('Codex  ');
     });
 
     it('falls back to modelId when displayName absent', () => {

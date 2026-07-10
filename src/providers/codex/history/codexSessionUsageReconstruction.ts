@@ -80,7 +80,7 @@ export function reconstructCodexSessionUsage(
 
     contributions.push({
       providerId: 'codex',
-      modelId: 'codex',
+      modelId: '',
       turnId: `codex-reload-${turnCounter}`,
       inputTokens: delta.inputTokens,
       outputTokens: delta.outputTokens,

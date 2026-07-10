@@ -56,6 +56,7 @@ export interface CodexTurnParams {
   turnModelDisplayName?: string;
   turnEffort?: string;
   rateLimitSnapshot?: RateLimitSnapshot | null;
+  previousCumulativeTotal?: TokenUsage | null;
 }
 
 export class CodexNotificationRouter {
@@ -151,7 +152,10 @@ export class CodexNotificationRouter {
     this.turnModelId = params.turnModelId;
     this.turnModelDisplayName = params.turnModelDisplayName;
     this.turnEffort = params.turnEffort;
-    this.rateLimitSnapshot = params.rateLimitSnapshot ?? null;
+    this.rateLimitSnapshot = params.rateLimitSnapshot ?? this.rateLimitSnapshot;
+    if (params.previousCumulativeTotal !== undefined) {
+      this.previousCumulativeTotal = params.previousCumulativeTotal;
+    }
   }
 
   endTurn(): void {
@@ -171,6 +175,11 @@ export class CodexNotificationRouter {
     this.turnModelId = undefined;
     this.turnModelDisplayName = undefined;
     this.turnEffort = undefined;
+  }
+
+  /** Get the previous cumulative total (for persistence across turns). */
+  getPreviousCumulativeTotal(): TokenUsage | null {
+    return this.previousCumulativeTotal;
   }
 
   /** Update the rate-limit snapshot from a sparse notification or full read. */

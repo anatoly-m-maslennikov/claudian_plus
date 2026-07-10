@@ -200,3 +200,46 @@
   overflow-y: auto;
   word-break: break-word;
 }
+
+/* Session Usage Section */
+
+.claudian-status-panel-session-usage {
+  margin-top: 4px;
+}
+
+.claudian-status-panel-session-usage-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  padding: 4px 0;
+  user-select: none;
+}
+
+.claudian-status-panel-session-usage-header:hover {
+  opacity: 0.8;
+}
+
+.claudian-status-panel-session-usage-header .claudian-status-panel-icon {
+  display: flex;
+  align-items: center;
+}
+
+.claudian-status-panel-session-usage-header .claudian-status-panel-icon svg {
+  width: 14px;
+  height: 14px;
+}
+
+.claudian-status-panel-session-usage-content {
+  margin-top: 2px;
+}
+
+.claudian-session-usage-text {
+  margin: 0;
+  font-size: var(--font-smaller);
+  color: var(--text-muted);
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: var(--font-monospace);
+  line-height: 1.5;
+}

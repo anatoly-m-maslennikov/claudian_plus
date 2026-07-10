@@ -9,6 +9,7 @@ function createMockCallbacks(): TabBarCallbacks {
     onTabClick: jest.fn(),
     onTabClose: jest.fn(),
     onNewTab: jest.fn(),
+    onTabContextMenu: jest.fn(),
   };
 }
 
@@ -445,7 +446,7 @@ describe('TabBar', () => {
       expect(callbacks.onTabClick).toHaveBeenCalledWith('clicked-tab');
     });
 
-    it('should call onTabClose on right-click when canClose is true', () => {
+    it('should call onTabContextMenu on right-click', () => {
       const containerEl = createMockEl();
       const callbacks = createMockCallbacks();
       const tabBar = new TabBar(containerEl, callbacks);
@@ -453,22 +454,22 @@ describe('TabBar', () => {
       tabBar.update([createTabBarItem({ id: 'closeable-tab', canClose: true })]);
 
       // Simulate right-click (contextmenu)
-      const mockEvent = { preventDefault: jest.fn() };
+      const mockEvent = { preventDefault: jest.fn(), clientX: 100, clientY: 200 };
       containerEl._children[0].dispatchEvent('contextmenu', mockEvent);
 
       expect(mockEvent.preventDefault).toHaveBeenCalled();
-      expect(callbacks.onTabClose).toHaveBeenCalledWith('closeable-tab');
+      expect(callbacks.onTabContextMenu).toHaveBeenCalledWith('closeable-tab', expect.any(Object), mockEvent);
     });
 
-    it('should not register contextmenu handler when canClose is false', () => {
+    it('should always register contextmenu handler (even when canClose is false)', () => {
       const containerEl = createMockEl();
       const callbacks = createMockCallbacks();
       const tabBar = new TabBar(containerEl, callbacks);
 
       tabBar.update([createTabBarItem({ id: 'uncloseable-tab', canClose: false })]);
 
-      // Check that contextmenu handler was not registered
-      expect(containerEl._children[0]._eventListeners.has('contextmenu')).toBe(false);
+      // Context menu is always available now (close item is disabled, not removed)
+      expect(containerEl._children[0]._eventListeners.has('contextmenu')).toBe(true);
     });
   });
 

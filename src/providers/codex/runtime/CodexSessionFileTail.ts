@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 
-import type { FiveHourWindow, SessionUsageContributionInput, StreamChunk, UsageInfo } from '../../../core/types/chat';
+import type { StreamChunk, UsageInfo } from '../../../core/types/chat';
 import { findCodexSessionFile } from '../history/CodexHistoryStore';
 import {
   isCodexToolOutputError,
@@ -270,49 +270,10 @@ export function mapEventMsgEvent(
         }
       }
 
-      // Emit session_usage (cumulative delta) before done
-      if (!state.emittedSessionUsageByTurn.has(turnId)) {
-        const pending = state.pendingUsageByTurn.get(turnId);
-        if (pending?.cumulativeTotal) {
-          const cumulative = pending.cumulativeTotal;
-          const previous = state.previousCumulativeTotal;
-          const delta = {
-            inputTokens: cumulative.inputTokens - (previous?.inputTokens ?? 0),
-            outputTokens: cumulative.outputTokens - (previous?.outputTokens ?? 0),
-            reasoningTokens: cumulative.reasoningTokens - (previous?.reasoningTokens ?? 0),
-            cachedInputTokens: cumulative.cachedInputTokens - (previous?.cachedInputTokens ?? 0),
-            totalTokens: cumulative.totalTokens - (previous?.totalTokens ?? 0),
-          };
-
-          if (delta.totalTokens > 0 || delta.inputTokens > 0 || delta.outputTokens > 0) {
-            state.previousCumulativeTotal = cumulative;
-
-            const contribution: SessionUsageContributionInput = {
-              providerId: 'codex',
-              modelId: 'codex',
-              turnId,
-              inputTokens: delta.inputTokens,
-              outputTokens: delta.outputTokens,
-              reasoningTokens: delta.reasoningTokens,
-              ...(delta.cachedInputTokens > 0 ? { cachedInputTokens: delta.cachedInputTokens } : {}),
-              completedAt: Date.now(),
-            };
-
-            let fiveHourWindow: FiveHourWindow | undefined;
-            if (pending.fiveHourWindow && pending.fiveHourWindow.windowMinutes === 300) {
-              fiveHourWindow = {
-                usedPercent: pending.fiveHourWindow.usedPercent,
-                windowMinutes: 300,
-                observedAt: Date.now(),
-                providerId: 'codex',
-              };
-            }
-
-            chunks.push({ type: 'session_usage', contribution, fiveHourWindow, sessionId });
-          }
-          state.emittedSessionUsageByTurn.add(turnId);
-        }
-      }
+      // session_usage is emitted by CodexNotificationRouter (live JSON-RPC path)
+      // and by reconstructCodexSessionUsage (reload path). The transcript tail
+      // does not emit session_usage to avoid double-counting — it doesn't know
+      // the real modelId and would create a separate ledger row.
 
       if (!state.emittedDoneByTurn.has(turnId)) {
         chunks.push({ type: 'done' });

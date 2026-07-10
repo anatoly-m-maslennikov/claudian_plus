@@ -1,5 +1,5 @@
 import type { EventRef, WorkspaceLeaf } from 'obsidian';
-import { ItemView, Notice, Scope, setIcon } from 'obsidian';
+import { ItemView, Menu, Notice, Scope, setIcon } from 'obsidian';
 
 import { getHiddenProviderCommandSet } from '../../core/providers/commands/hiddenCommands';
 import { ProviderRegistry } from '../../core/providers/ProviderRegistry';
@@ -22,7 +22,7 @@ import {
 } from './tabs/Tab';
 import { TabBar } from './tabs/TabBar';
 import { TabManager } from './tabs/TabManager';
-import type { TabData, TabId } from './tabs/types';
+import type { TabBarItem,TabData, TabId } from './tabs/types';
 import { recalculateUsageForModel } from './utils/usageInfo';
 
 type LoadableView = {
@@ -37,6 +37,7 @@ export class ClaudianView extends ItemView {
   private tabManager: TabManager | null = null;
   private tabBar: TabBar | null = null;
   private tabBarContainerEl: HTMLElement | null = null;
+  private tabSelectorEl: HTMLElement | null = null;
   private tabContentEl: HTMLElement | null = null;
   private navRowContent: HTMLElement | null = null;
   private inputFooterEl: HTMLElement | null = null;
@@ -283,6 +284,24 @@ export class ClaudianView extends ItemView {
 
     const fragment = activeDocument.createDocumentFragment();
 
+    // Tab selector dropdown (left of tab badges — shows full tab titles)
+    this.tabSelectorEl = activeDocument.createElement('div');
+    this.tabSelectorEl.className = 'claudian-tab-selector claudian-hidden';
+    this.tabSelectorEl.setAttribute('aria-label', 'Switch tab');
+    this.tabSelectorEl.setAttribute('role', 'button');
+    this.tabSelectorEl.setAttribute('tabindex', '0');
+    setIcon(this.tabSelectorEl, 'list');
+    this.tabSelectorEl.addEventListener('click', (e) => {
+      this.showTabSelectorMenu(e);
+    });
+    this.tabSelectorEl.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        this.showTabSelectorMenu(e);
+      }
+    });
+    fragment.appendChild(this.tabSelectorEl);
+
     this.tabBarContainerEl = activeDocument.createElement('div');
     this.tabBarContainerEl.className = 'claudian-tab-bar-container';
     this.tabBar = new TabBar(this.tabBarContainerEl, {
@@ -292,6 +311,9 @@ export class ClaudianView extends ItemView {
       },
       onNewTab: () => {
         void this.createNewTab().catch(() => new Notice('Failed to create tab'));
+      },
+      onTabContextMenu: (tabId, item, e) => {
+        this.showTabContextMenu(tabId, item, e);
       },
     });
     fragment.appendChild(this.tabBarContainerEl);
@@ -414,13 +436,68 @@ export class ClaudianView extends ItemView {
   private async handleTabClose(tabId: TabId): Promise<void> {
     try {
       const tab = this.tabManager?.getTab(tabId);
-      // If streaming, treat close like user interrupt (force close cancels the stream)
       const force = tab?.state.isStreaming ?? false;
       await this.tabManager?.closeTab(tabId, force);
       this.updateTabBarVisibility();
     } catch {
       new Notice('Failed to close tab');
     }
+  }
+
+  private showTabContextMenu(tabId: TabId, item: TabBarItem, e: MouseEvent): void {
+    if (!this.tabManager) return;
+    const allTabs = this.tabManager.getAllTabs();
+    const tabCount = allTabs.length;
+    const isActive = item.isActive;
+
+    const menu = new Menu();
+
+    menu.addItem((mi) => mi
+      .setTitle('Close tab')
+      .setIcon('x')
+      .setDisabled(!item.canClose)
+      .onClick(() => {
+        void this.handleTabClose(tabId);
+      }));
+
+    menu.addItem((mi) => mi
+      .setTitle('Close other tabs')
+      .setIcon('x-square')
+      .setDisabled(tabCount <= 1)
+      .onClick(() => {
+        for (const tab of allTabs) {
+          if (tab.id !== tabId) {
+            const force = tab.state.isStreaming;
+            void this.tabManager?.closeTab(tab.id, force);
+          }
+        }
+        this.updateTabBarVisibility();
+      }));
+
+    menu.addItem((mi) => mi
+      .setTitle('Close all tabs')
+      .setIcon('x-circle')
+      .setDisabled(tabCount <= 1)
+      .onClick(() => {
+        for (const tab of allTabs) {
+          const force = tab.state.isStreaming;
+          void this.tabManager?.closeTab(tab.id, force);
+        }
+        this.updateTabBarVisibility();
+      }));
+
+    menu.addSeparator();
+
+    if (!isActive) {
+      menu.addItem((mi) => mi
+        .setTitle('Switch to tab')
+        .setIcon('arrow-right')
+        .onClick(() => {
+          this.handleTabClick(tabId);
+        }));
+    }
+
+    menu.showAtPosition({ x: e.clientX, y: e.clientY });
   }
 
   async createNewTab(): Promise<void> {
@@ -459,8 +536,36 @@ export class ClaudianView extends ItemView {
     const showTabBar = tabCount >= 2;
 
     this.tabBarContainerEl.toggleClass('claudian-hidden', !showTabBar);
+    this.tabSelectorEl?.toggleClass('claudian-hidden', !showTabBar);
 
     this.updateNewTabButtonVisibility();
+  }
+
+  private showTabSelectorMenu(e: MouseEvent | KeyboardEvent): void {
+    if (!this.tabManager) return;
+    const items = this.tabManager.getTabBarItems();
+    if (items.length < 2) return;
+
+    const menu = new Menu();
+    for (const item of items) {
+      const isActive = item.isActive;
+      const title = item.title || `Tab ${item.index}`;
+      menu.addItem((menuItem) => {
+        menuItem.setTitle(title);
+        if (isActive) {
+          menuItem.setIcon('check');
+        }
+        menuItem.onClick(() => {
+          this.handleTabClick(item.id);
+        });
+      });
+    }
+    const rect = this.tabSelectorEl?.getBoundingClientRect();
+    if (rect) {
+      menu.showAtPosition({ x: rect.left, y: rect.bottom });
+    } else {
+      menu.showAtPosition({ x: (e as MouseEvent).clientX, y: (e as MouseEvent).clientY });
+    }
   }
 
   private updateNewTabButtonVisibility(): void {

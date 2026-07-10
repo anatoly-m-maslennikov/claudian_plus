@@ -1,4 +1,4 @@
-import type { FiveHourWindow, SessionUsageLedger, SessionUsageRow } from '../../../core/types';
+import type { SessionUsageLedger, SessionUsageRow } from '../../../core/types';
 
 /** Compact a token count for display: `<1000` as-is, `<1M` → `Nk`, else `N.NM`. */
 export function compactTokens(n: number): string {
@@ -11,7 +11,7 @@ export function compactTokens(n: number): string {
  * Format a single session usage row for the footer / status panel.
  *
  * Format:
- *   `- {provider} {displayName|modelId}{, {effort}}: {compact} tokens{; cost: {pct}%/5h}`
+ *   `- {provider} {displayName|modelId}{, {effort}}: {in}k/{out}k tokens`
  *
  * Optional segments are omitted when their data is absent. Never displays `unavailable`.
  */
@@ -20,16 +20,13 @@ export function formatSessionUsageRow(
   providerDisplayName: string,
   ledger?: SessionUsageLedger,
 ): string {
+  void ledger;
   const name = row.displayName ?? row.modelId;
+  const nameSegment = name ? ` ${name}` : '';
   const effortSegment = row.effort ? `, ${row.effort}` : '';
   const tokenSegment = `${compactTokens(row.totalTokens)} tokens`;
 
-  let costSegment = '';
-  if (ledger?.fiveHourWindow && ledger.fiveHourWindow.windowMinutes === 300 && ledger.fiveHourWindow.providerId === row.providerId) {
-    costSegment = `; cost: ${ledger.fiveHourWindow.usedPercent}%/5h`;
-  }
-
-  return `- ${providerDisplayName} ${name}${effortSegment}: ${tokenSegment}${costSegment}`;
+  return `- ${providerDisplayName}${nameSegment}${effortSegment}: ${tokenSegment}`;
 }
 
 /** Format the full session usage block (all rows). */
@@ -42,10 +39,4 @@ export function formatSessionUsage(
   return rows
     .map(r => formatSessionUsageRow(r, providerDisplayNames[r.providerId] ?? r.providerId, ledger))
     .join('\n');
-}
-
-/** Get the window label for display, or null if not applicable. */
-export function getFiveHourWindowLabel(window: FiveHourWindow | undefined): string | null {
-  if (!window || window.windowMinutes !== 300) return null;
-  return `${window.usedPercent}%/5h`;
 }

@@ -15,6 +15,9 @@ export interface TabBarCallbacks {
 
   /** Called when the new tab button is clicked. */
   onNewTab: () => void;
+
+  /** Called when the context menu is requested on a tab. */
+  onTabContextMenu: (tabId: TabId, item: TabBarItem, event: MouseEvent) => void;
 }
 
 /**
@@ -101,13 +104,11 @@ export class TabBar {
       this.toggleBadgeTitle(item, badgeEl);
     });
 
-    // Right-click to close (if allowed)
-    if (item.canClose) {
-      badgeEl.addEventListener('contextmenu', (e) => {
-        e.preventDefault();
-        this.callbacks.onTabClose(item.id);
-      });
-    }
+    // Right-click context menu
+    badgeEl.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      this.callbacks.onTabContextMenu(item.id, item, e);
+    });
   }
 
   /** Destroys the tab bar. */

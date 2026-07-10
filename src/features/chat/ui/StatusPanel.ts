@@ -7,7 +7,7 @@ import type { SessionUsageLedger } from '../../../core/types';
 import { t } from '../../../i18n/i18n';
 import { renderTodoItems } from '../rendering/todoUtils';
 import { SessionUsageService } from '../services/SessionUsageService';
-import { formatSessionUsage } from '../utils/sessionUsageFormat';
+import { compactTokens, formatSessionUsage } from '../utils/sessionUsageFormat';
 
 export interface PanelBashOutput {
   id: string;
@@ -43,7 +43,9 @@ export class StatusPanel {
 
   // Session usage section
   private sessionUsageContainerEl: HTMLElement | null = null;
+  private sessionUsageHeaderEl: HTMLElement | null = null;
   private sessionUsageContentEl: HTMLElement | null = null;
+  private isSessionUsageExpanded = false;
   private currentSessionUsage: SessionUsageLedger | null = null;
 
   // Event handler references for cleanup
@@ -107,6 +109,7 @@ export class StatusPanel {
     this.todoHeaderEl = null;
     this.todoContentEl = null;
     this.sessionUsageContainerEl = null;
+    this.sessionUsageHeaderEl = null;
     this.sessionUsageContentEl = null;
     this.createPanel();
 
@@ -192,8 +195,16 @@ export class StatusPanel {
     this.sessionUsageContainerEl = ownerDocument.createElement('div');
     this.sessionUsageContainerEl.className = 'claudian-status-panel-session-usage claudian-hidden';
 
+    // Collapsible header
+    this.sessionUsageHeaderEl = ownerDocument.createElement('div');
+    this.sessionUsageHeaderEl.className = 'claudian-status-panel-session-usage-header';
+    this.sessionUsageHeaderEl.setAttribute('role', 'button');
+    this.sessionUsageHeaderEl.setAttribute('aria-expanded', 'false');
+    this.sessionUsageHeaderEl.addEventListener('click', () => this.toggleSessionUsage());
+    this.sessionUsageContainerEl.appendChild(this.sessionUsageHeaderEl);
+
     this.sessionUsageContentEl = ownerDocument.createElement('div');
-    this.sessionUsageContentEl.className = 'claudian-status-panel-session-usage-content';
+    this.sessionUsageContentEl.className = 'claudian-status-panel-session-usage-content claudian-hidden';
     this.sessionUsageContainerEl.appendChild(this.sessionUsageContentEl);
 
     this.panelEl.appendChild(this.sessionUsageContainerEl);
@@ -247,13 +258,14 @@ export class StatusPanel {
    * Passing null or empty ledger hides the section.
    */
   renderSessionUsage(ledger: SessionUsageLedger | null): void {
-    if (!this.sessionUsageContainerEl || !this.sessionUsageContentEl) return;
+    if (!this.sessionUsageContainerEl || !this.sessionUsageContentEl || !this.sessionUsageHeaderEl) return;
 
     this.currentSessionUsage = ledger;
 
     if (!ledger || ledger.rows.length === 0) {
       this.sessionUsageContainerEl.addClass('claudian-hidden');
       this.sessionUsageContentEl.empty();
+      this.sessionUsageHeaderEl.empty();
       return;
     }
 
@@ -263,6 +275,7 @@ export class StatusPanel {
     if (rows.length === 0) {
       this.sessionUsageContainerEl.addClass('claudian-hidden');
       this.sessionUsageContentEl.empty();
+      this.sessionUsageHeaderEl.empty();
       return;
     }
 
@@ -281,13 +294,44 @@ export class StatusPanel {
     }
 
     this.sessionUsageContainerEl.removeClass('claudian-hidden');
-    this.sessionUsageContentEl.empty();
-    this.sessionUsageContentEl.createEl('pre', {
-      cls: 'claudian-session-usage-text',
-      text,
-    });
+
+    // Render header with summary
+    this.sessionUsageHeaderEl.empty();
+    const ownerDocument = this.sessionUsageHeaderEl.ownerDocument ?? window.document;
+
+    const headerIcon = ownerDocument.createElement('span');
+    headerIcon.className = 'claudian-status-panel-icon';
+    setIcon(headerIcon, this.isSessionUsageExpanded ? 'chevron-down' : 'chevron-right');
+    this.sessionUsageHeaderEl.appendChild(headerIcon);
+
+    const totalTokens = rows.reduce((sum, r) => sum + r.totalTokens, 0);
+    const headerLabel = ownerDocument.createElement('span');
+    headerLabel.className = 'claudian-status-panel-label';
+    headerLabel.textContent = `Session usage (${compactTokens(totalTokens)} tokens)`;
+    this.sessionUsageHeaderEl.appendChild(headerLabel);
+
+    this.sessionUsageHeaderEl.setAttribute(
+      'aria-label',
+      `${this.isSessionUsageExpanded ? 'Collapse' : 'Expand'} session usage - ${compactTokens(totalTokens)} tokens`,
+    );
+    this.sessionUsageHeaderEl.setAttribute('aria-expanded', String(this.isSessionUsageExpanded));
+
+    // Render content (only visible when expanded)
+    this.sessionUsageContentEl.toggleClass('claudian-hidden', !this.isSessionUsageExpanded);
+    if (this.isSessionUsageExpanded) {
+      this.sessionUsageContentEl.empty();
+      this.sessionUsageContentEl.createEl('pre', {
+        cls: 'claudian-session-usage-text',
+        text,
+      });
+    }
 
     this.scrollToBottom();
+  }
+
+  private toggleSessionUsage(): void {
+    this.isSessionUsageExpanded = !this.isSessionUsageExpanded;
+    this.renderSessionUsage(this.currentSessionUsage);
   }
 
   /**
@@ -656,6 +700,7 @@ export class StatusPanel {
     this.todoHeaderEl = null;
     this.todoContentEl = null;
     this.sessionUsageContainerEl = null;
+    this.sessionUsageHeaderEl = null;
     this.sessionUsageContentEl = null;
     this.containerEl = null;
     this.currentTodos = null;

@@ -67,6 +67,7 @@ import type {
   ThreadResumeResult,
   ThreadRollbackResult,
   ThreadStartResult,
+  TokenUsage,
   TurnStartedNotification,
   TurnStartResult,
   TurnSteerResult,
@@ -150,6 +151,9 @@ export class CodexChatRuntime implements ChatRuntime {
 
   // Rate-limit snapshot (seeded on init, updated via notifications)
   private rateLimitSnapshot: RateLimitSnapshot | null = null;
+
+  // Cumulative token usage — persists across turns so deltas are per-turn, not full cumulative
+  private previousCumulativeTotal: TokenUsage | null = null;
 
   constructor(plugin: ClaudianPlugin) {
     this.plugin = plugin;
@@ -407,6 +411,7 @@ export class CodexChatRuntime implements ChatRuntime {
         this.notificationRouter?.beginTurn({
           isPlanTurn: false,
           rateLimitSnapshot: this.rateLimitSnapshot,
+          previousCumulativeTotal: this.previousCumulativeTotal,
         });
 
         await this.transport!.request<ThreadCompactStartResult>(
@@ -461,6 +466,7 @@ export class CodexChatRuntime implements ChatRuntime {
           turnModelDisplayName: formatCodexModelLabel(resolvedModel),
           turnEffort: effort,
           rateLimitSnapshot: this.rateLimitSnapshot,
+          previousCumulativeTotal: this.previousCumulativeTotal,
         });
 
         const turnResult = await this.transport!.request<TurnStartResult>('turn/start', {
@@ -523,6 +529,8 @@ export class CodexChatRuntime implements ChatRuntime {
       yield { type: 'done' };
       return;
     } finally {
+      // Persist cumulative total across turns for correct delta calculation
+      this.previousCumulativeTotal = this.notificationRouter?.getPreviousCumulativeTotal() ?? null;
       this.notificationRouter?.endTurn();
 
       this.cleanupActiveInputBundles();
