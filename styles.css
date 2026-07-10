@@ -196,18 +196,9 @@ body.theme-dark .claudian-provider-icon-variant--dark {
   display: flex;
   align-items: center;
   gap: 4px;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   min-width: 0;
   max-width: 100%;
-  overflow-x: auto;
-  overflow-y: hidden;
-  overscroll-behavior-x: contain;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-}
-
-.claudian-tab-badges::-webkit-scrollbar {
-  display: none;
 }
 
 .claudian-tab-badge {
