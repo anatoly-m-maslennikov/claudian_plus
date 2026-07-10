@@ -1,8 +1,8 @@
 import { scheduleAnimationFrame } from '../../../utils/animationFrame';
 import type { TabBarItem, TabId } from './types';
 
-const EXPANDED_TITLE_MAX_LENGTH = 32;
-const DEFAULT_TITLE_MAX_LENGTH = 16;
+const EXPANDED_TITLE_MAX_LENGTH = 48;
+const DEFAULT_TITLE_MAX_LENGTH = 32;
 const TRUNCATED_TITLE_SUFFIX = '...';
 
 /** Callbacks for TabBar interactions. */

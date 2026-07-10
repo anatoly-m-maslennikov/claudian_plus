@@ -21,7 +21,7 @@ No integration or E2E needed — feature is pure rendering logic with no I/O.
 
 ### TabBar — titled badge rendering (10 cases)
 
-1. `showTitle: true` renders truncated title (16-char cap with `...` suffix)
+1. `showTitle: true` renders truncated title (32-char cap with `...` suffix)
 2. `showTitle: true` renders full title when ≤13 chars (no truncation)
 3. `showTitle: true` blank tab shows `New Chat`
 4. `showTitle: false` renders index number

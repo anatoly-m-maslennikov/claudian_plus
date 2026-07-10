@@ -142,7 +142,7 @@ describe('TabBar', () => {
       const containerEl = createMockEl();
       const callbacks = createMockCallbacks();
       const tabBar = new TabBar(containerEl, callbacks);
-      const title = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+      const title = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789abcdefghijklmnopqrstuvwxyz';
 
       tabBar.update([createTabBarItem({ title })]);
       containerEl._children[0].dispatchEvent('dblclick', {
@@ -150,7 +150,7 @@ describe('TabBar', () => {
         stopPropagation: jest.fn(),
       });
 
-      expect(containerEl._children[0].textContent).toBe('ABCDEFGHIJKLMNOPQRSTUVWXYZ012...');
+      expect(containerEl._children[0].textContent).toBe('ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789abcdefghi...');
       expect(containerEl._children[0].textContent.endsWith('...')).toBe(true);
     });
 
@@ -220,9 +220,9 @@ describe('TabBar', () => {
       const callbacks = createMockCallbacks();
       const tabBar = new TabBar(containerEl, callbacks);
 
-      tabBar.update([createTabBarItem({ showTitle: true, title: 'Refactor auth flow' })]);
+      tabBar.update([createTabBarItem({ showTitle: true, title: 'ThisIsAVeryLongTabTitleThatExceedsLimit' })]);
 
-      expect(containerEl._children[0].textContent).toBe('Refactor auth...');
+      expect(containerEl._children[0].textContent).toBe('ThisIsAVeryLongTabTitleThatEx...');
     });
 
     it('renders the full title when short enough', () => {
@@ -257,11 +257,11 @@ describe('TabBar', () => {
       expect(containerEl._children[0].textContent).toBe('7');
     });
 
-    it('expands a titled badge to the 32-char limit on double click', () => {
+    it('expands a titled badge to the 48-char limit on double click', () => {
       const containerEl = createMockEl();
       const callbacks = createMockCallbacks();
       const tabBar = new TabBar(containerEl, callbacks);
-      const longTitle = 'A'.repeat(40);
+      const longTitle = 'A'.repeat(60);
 
       tabBar.update([createTabBarItem({ showTitle: true, title: longTitle })]);
       containerEl._children[0].dispatchEvent('dblclick', {
@@ -270,13 +270,13 @@ describe('TabBar', () => {
       });
 
       const badge = containerEl._children[0];
-      expect(badge.textContent).toBe(`${'A'.repeat(29)}...`);
+      expect(badge.textContent).toBe(`${'A'.repeat(45)}...`);
       expect(badge.hasClass('claudian-tab-badge--titled')).toBe(false);
       expect(badge.hasClass('claudian-tab-badge-expanded')).toBe(true);
       expect(badge.getAttribute('data-title-expanded')).toBe('true');
     });
 
-    it('returns to the 16-char titled mode after toggling expanded off', () => {
+    it('returns to the 32-char titled mode after toggling expanded off', () => {
       const containerEl = createMockEl();
       const callbacks = createMockCallbacks();
       const tabBar = new TabBar(containerEl, callbacks);
@@ -289,7 +289,7 @@ describe('TabBar', () => {
       // collapse
       badge.dispatchEvent('dblclick', { preventDefault: jest.fn(), stopPropagation: jest.fn() });
 
-      expect(badge.textContent).toBe(`${'A'.repeat(13)}...`);
+      expect(badge.textContent).toBe(`${'A'.repeat(29)}...`);
       expect(badge.hasClass('claudian-tab-badge--titled')).toBe(true);
       expect(badge.hasClass('claudian-tab-badge-expanded')).toBe(false);
       expect(badge.getAttribute('data-title-expanded')).toBe('false');
@@ -332,28 +332,28 @@ describe('TabBar', () => {
       expect(badge.getAttribute('data-title-expanded')).toBe('true');
     });
 
-    it('does not truncate a title that is exactly 16 chars', () => {
+    it('does not truncate a title that is exactly 32 chars', () => {
       const containerEl = createMockEl();
       const callbacks = createMockCallbacks();
       const tabBar = new TabBar(containerEl, callbacks);
-      const title = '1234567890123456';
+      const title = '12345678901234567890123456789012';
 
       tabBar.update([createTabBarItem({ showTitle: true, title })]);
 
-      expect(containerEl._children[0].textContent).toBe('1234567890123456');
+      expect(containerEl._children[0].textContent).toBe('12345678901234567890123456789012');
     });
 
-    it('truncates a 17-char title to 16 chars total with ellipsis suffix', () => {
+    it('truncates a 33-char title to 32 chars total with ellipsis suffix', () => {
       const containerEl = createMockEl();
       const callbacks = createMockCallbacks();
       const tabBar = new TabBar(containerEl, callbacks);
-      const title = '12345678901234567';
+      const title = '123456789012345678901234567890123';
 
       tabBar.update([createTabBarItem({ showTitle: true, title })]);
 
-      // 16-char cap = 13 leading chars + 3-char '...' suffix = 16 total
-      expect(containerEl._children[0].textContent).toBe('1234567890123...');
-      expect(containerEl._children[0].textContent.length).toBe(16);
+      // 32-char cap = 29 leading chars + 3-char '...' suffix = 32 total
+      expect(containerEl._children[0].textContent).toBe('12345678901234567890123456789...');
+      expect(containerEl._children[0].textContent.length).toBe(32);
     });
   });
 
