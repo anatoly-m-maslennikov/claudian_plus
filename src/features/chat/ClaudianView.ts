@@ -8,6 +8,7 @@ import { DEFAULT_CHAT_PROVIDER_ID, type ProviderId } from '../../core/providers/
 import { VIEW_TYPE_CLAUDIAN } from '../../core/types';
 import type ClaudianPlugin from '../../main';
 import { createProviderIconSvg } from '../../shared/icons';
+import { promptText } from '../../shared/modals/TextPromptModal';
 import {
   cancelScheduledAnimationFrame,
   scheduleAnimationFrame,
@@ -497,7 +498,38 @@ export class ClaudianView extends ItemView {
         }));
     }
 
+    const tab = this.tabManager.getTab(tabId);
+    if (tab?.conversationId) {
+      menu.addItem((mi) => mi
+        .setTitle('Rename tab')
+        .setIcon('pencil')
+        .onClick(() => {
+          void this.handleTabRename(tabId);
+        }));
+    }
+
     menu.showAtPosition({ x: e.clientX, y: e.clientY });
+  }
+
+  private async handleTabRename(tabId: TabId): Promise<void> {
+    if (!this.tabManager) return;
+    const tab = this.tabManager.getTab(tabId);
+    if (!tab?.conversationId) return;
+
+    const conversation = this.plugin.getConversationSync(tab.conversationId);
+    const currentTitle = conversation?.title ?? 'New Chat';
+
+    const newTitle = await promptText(
+      this.app,
+      'Rename tab',
+      currentTitle,
+      'Enter new title',
+    );
+
+    if (newTitle === null) return;
+
+    await this.plugin.renameConversation(tab.conversationId, newTitle);
+    this.updateTabBar();
   }
 
   async createNewTab(): Promise<void> {
