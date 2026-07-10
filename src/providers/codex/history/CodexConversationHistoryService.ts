@@ -11,7 +11,7 @@ import {
   parseCodexSessionFile,
   parseCodexSessionTurns,
 } from './CodexHistoryStore';
-import { reconstructCodexSessionUsage } from './codexSessionUsageReconstruction';
+
 
 function readSessionTurns(sessionFilePath: string): CodexParsedTurn[] {
   let content: string;
@@ -139,19 +139,6 @@ export class CodexConversationHistoryService implements ProviderConversationHist
 
     conversation.messages = sdkMessages;
     this.hydratedConversationPaths.set(conversation.id, hydrationKey);
-
-    // Reconcile session usage ledger from transcript if not already persisted
-    if (!conversation.sessionUsage) {
-      try {
-        const content = fs.readFileSync(sessionFilePath, 'utf-8');
-        const reconstructed = reconstructCodexSessionUsage(content, conversation.id);
-        if (reconstructed) {
-          conversation.sessionUsage = reconstructed;
-        }
-      } catch {
-        // Transcript read failure — leave ledger absent (no error)
-      }
-    }
   }
 
   async deleteConversationSession(
