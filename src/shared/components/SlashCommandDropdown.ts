@@ -192,6 +192,7 @@ export class SlashCommandDropdown {
   }
 
   hide(): void {
+    this.requestId++; // Cancel any pending async showDropdown
     if (this.dropdownEl) {
       this.dropdownEl.removeClass('visible');
     }
