@@ -904,4 +904,101 @@ export class ClaudianView extends ItemView {
       this.inputNavRowHostEl,
     ].filter((el): el is HTMLElement => el !== null);
   }
+
+  // ============================================
+  // Tmux command handlers
+  // ============================================
+
+  showTmuxRenameTab(tabId: TabId): void {
+    void this.handleTabRename(tabId);
+  }
+
+  showTmuxTabsList(): void {
+    this.updateTabBar();
+    // Show a dropdown with all tabs
+    if (!this.tabManager) return;
+    const menu = new Menu();
+    for (const tab of this.tabManager.getAllTabs()) {
+      const title = tab.conversationId
+        ? this.plugin.getConversationSync(tab.conversationId)?.title ?? 'New Chat'
+        : 'New Chat';
+      menu.addItem((mi) => mi
+        .setTitle(title)
+        .setIcon(tab.id === this.tabManager!.getActiveTabId() ? 'circle-dot' : 'circle')
+        .onClick(() => {
+          void this.tabManager?.switchToTab(tab.id);
+        }));
+    }
+    const rect = this.contentEl.getBoundingClientRect();
+    menu.showAtPosition({ x: rect.left + 50, y: rect.top + 50 });
+  }
+
+  showTmuxSessionsList(): void {
+    // Delegate to the active tab's conversation controller history dropdown
+    const activeTab = this.tabManager?.getActiveTab();
+    activeTab?.controllers.conversationController?.toggleHistoryDropdown?.();
+  }
+
+  showTmuxFindTab(): void {
+    if (!this.tabManager) return;
+    // Simple: focus the tab selector and show a search
+    void this.handleTabSearch();
+  }
+
+  private async handleTabSearch(): Promise<void> {
+    if (!this.tabManager) return;
+    const query = await promptText(
+      this.app,
+      'Find tab',
+      '',
+      'Type to search tabs...',
+    );
+    if (query === null || query.trim() === '') return;
+
+    const queryLower = query.toLowerCase();
+    for (const tab of this.tabManager.getAllTabs()) {
+      const title = tab.conversationId
+        ? this.plugin.getConversationSync(tab.conversationId)?.title ?? 'New Chat'
+        : 'New Chat';
+      if (title.toLowerCase().includes(queryLower)) {
+        void this.tabManager.switchToTab(tab.id);
+        return;
+      }
+    }
+    new Notice(`No tab matching "${query}"`);
+  }
+
+  showTmuxRenameConversation(): void {
+    const activeTab = this.tabManager?.getActiveTab();
+    if (activeTab?.conversationId) {
+      void this.handleTabRename(activeTab.id);
+    }
+  }
+
+  showTmuxMoveTab(): void {
+    if (!this.tabManager) return;
+    const tabs = this.tabManager.getAllTabs();
+    const activeTabId = this.tabManager.getActiveTabId();
+    if (!activeTabId) return;
+    const currentIdx = tabs.findIndex(t => t.id === activeTabId);
+    void this.handleTmuxMoveTab(currentIdx, tabs.length);
+  }
+
+  private async handleTmuxMoveTab(currentIdx: number, tabCount: number): Promise<void> {
+    if (!this.tabManager) return;
+    const result = await promptText(
+      this.app,
+      'Move tab to position',
+      String(currentIdx + 1),
+      `Position (1-${tabCount})`,
+    );
+    if (result === null) return;
+    const newPos = parseInt(result, 10) - 1;
+    if (isNaN(newPos) || newPos < 0 || newPos >= tabCount) return;
+    const items = this.tabManager.getTabBarItems();
+    if (currentIdx >= 0 && currentIdx < items.length) {
+      this.tabManager.moveTab(items[currentIdx].id, newPos);
+      this.updateTabBar();
+    }
+  }
 }

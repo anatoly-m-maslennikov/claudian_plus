@@ -1,10 +1,10 @@
 {
-  "id": "realclaudian",
-  "name": "Claudian",
+  "id": "your-harness",
+  "name": "Your Harness",
   "version": "2.0.25",
   "minAppVersion": "1.7.2",
-  "description": "Embeds Claude Code, Codex, and other coding agents as AI collaborators in your vault. Your vault becomes their working directory, giving them capabilities for file reads and writes, search, bash commands, and multi-step workflows.",
-  "author": "Yishen Tu",
-  "authorUrl": "https://github.com/YishenTu",
+  "description": "A control harness for AI agents in Obsidian.",
+  "author": "Anatoly Maslennikov",
+  "authorUrl": "https://github.com/anatoly-m-maslennikov",
   "isDesktopOnly": true
 }

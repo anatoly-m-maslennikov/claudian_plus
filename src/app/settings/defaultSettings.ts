@@ -47,6 +47,8 @@ export const DEFAULT_CLAUDIAN_SETTINGS: ClaudianSettings = {
   maxTabs: 3,
   showTabTitles: true,
   vaultPathAutocomplete: true,
+  tmuxMode: false,
+  tmuxPrefixKey: 'ctrl-b',
   enableAutoScroll: true,
   deferMathRenderingDuringStreaming: true,
   expandFileEditsByDefault: false,

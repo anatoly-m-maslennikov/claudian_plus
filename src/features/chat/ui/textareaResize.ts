@@ -1,6 +1,6 @@
 export const TEXTAREA_BASE_MIN_HEIGHT = 60;
 export const TEXTAREA_MIN_MAX_HEIGHT = 150;
-export const TEXTAREA_MAX_HEIGHT_PERCENT = 0.55;
+export const TEXTAREA_MAX_HEIGHT_PERCENT = 0.50;
 
 interface TextareaMinHeightInput {
   contentHeight: number;

@@ -14,6 +14,9 @@ import { t } from '../../../i18n/i18n';
 import type ClaudianPlugin from '../../../main';
 import { chooseForkTarget } from '../../../shared/modals/ForkTargetModal';
 import { revealWorkspaceLeaf } from '../../../utils/obsidianCompat';
+import { showTmuxHelp } from '../ui/TmuxPrefixHandler';
+
+void showTmuxHelp;
 import { getTabProviderId } from './providerResolution';
 import {
   activateTab,
@@ -90,6 +93,7 @@ export class TabManager implements TabManagerInterface {
 
   private tabs: Map<TabId, TabData> = new Map();
   private activeTabId: TabId | null = null;
+  private lastActiveTabId: TabId | null = null;
   private callbacks: TabManagerCallbacks;
   private providerCommandWarmups = new Map<TabId, ProviderCommandWarmupEntry>();
   private providerCommandCache = new Map<TabId, ProviderCommandCacheEntry>();
@@ -206,6 +210,36 @@ export class TabManager implements TabManagerInterface {
           // Keep provider switching non-blocking even if command warmup fails.
         });
       },
+      getTmuxCallbacks: () => ({
+        getTabCount: () => this.getTabCount(),
+        getActiveTabId: () => this.getActiveTabId(),
+        getActiveTabIndex: () => {
+          const activeId = this.getActiveTabId();
+          if (!activeId) return -1;
+          return Array.from(this.tabs.keys()).indexOf(activeId);
+        },
+        switchToTab: (tabId) => { void this.switchToTab(tabId); },
+        switchToAdjacentTab: (direction) => { void this.switchToAdjacentTab(direction); },
+        switchToTabIndex: (index) => {
+          const ids = Array.from(this.tabs.keys());
+          if (index >= 0 && index < ids.length) {
+            void this.switchToTab(ids[index]);
+          }
+        },
+        closeTab: (tabId) => { void this.closeTab(tabId); },
+        createTab: () => { void this.createTab(); },
+        renameTab: (tabId) => { this.view?.showTmuxRenameTab?.(tabId); },
+        showTabsList: () => { this.view?.showTmuxTabsList?.(); },
+        showSessionsList: () => { this.view?.showTmuxSessionsList?.(); },
+        toggleLastTab: () => {
+          if (this.lastActiveTabId) void this.switchToTab(this.lastActiveTabId);
+        },
+        cycleTabs: () => { void this.switchToAdjacentTab(1); },
+        findTab: () => { this.view?.showTmuxFindTab?.(); },
+        renameConversation: () => { this.view?.showTmuxRenameConversation?.(); },
+        moveTab: () => { this.view?.showTmuxMoveTab?.(); },
+        showHelp: () => { showTmuxHelp(this.plugin.settings.tmuxPrefixKey ?? 'ctrl-b'); },
+      }),
     });
 
     initializeTabControllers(
@@ -261,6 +295,9 @@ export class TabManager implements TabManagerInterface {
 
       // Activate new tab
       this.activeTabId = tabId;
+      if (previousTabId && previousTabId !== tabId) {
+        this.lastActiveTabId = previousTabId;
+      }
       activateTab(tab);
       this.callbacks.onActiveTabChanged?.(previousTabId, tabId);
 

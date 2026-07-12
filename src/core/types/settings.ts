@@ -141,6 +141,8 @@ export interface ClaudianSettings {
   maxTabs: number;
   showTabTitles: boolean;
   vaultPathAutocomplete: boolean;
+  tmuxMode: boolean;
+  tmuxPrefixKey: string;
   enableAutoScroll: boolean;
   deferMathRenderingDuringStreaming: boolean;
   expandFileEditsByDefault: boolean;

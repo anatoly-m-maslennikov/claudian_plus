@@ -35,9 +35,9 @@ function findInFolder(folder: TFolder, targetPath: string): TFile | TFolder | nu
     if (part === '') continue;
     const child = current.children.find(c => c.name === part);
     if (!child) return null;
-    if (i === parts.length - 1) return child;
+    if (i === parts.length - 1) return child as TFile | TFolder;
     if (!(child instanceof TFolder)) return null;
-    current = child;
+    current = child as TFolder;
   }
   return current;
 }

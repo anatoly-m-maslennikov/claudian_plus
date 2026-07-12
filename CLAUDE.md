@@ -104,4 +104,4 @@ Tests mirror the `src/` layout under `tests/unit/` and `tests/integration/`.
 
 ### Spec → Eval → Impl pipeline
 
-Specs in `claudian_plus_specs/1 - Spec/`. Eval/test plans in `claudian_plus_specs/2 - Eval Plan/`. Implementation plans in `claudian_plus_specs/2 - Implementation Plan/`. Tests mirror `src/` layout under `tests/`.
+Specs in `your_harness_specs/1 - Spec/`. Eval/test plans in `your_harness_specs/2 - Eval Plan/`. Implementation plans in `your_harness_specs/2 - Implementation Plan/`. Tests mirror `src/` layout under `tests/`.

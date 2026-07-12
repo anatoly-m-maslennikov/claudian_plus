@@ -68,7 +68,7 @@ function openHotkeySettings(app: App): void {
       return;
     }
 
-    searchEl.value = 'Claudian';
+    searchEl.value = 'Your Harness';
     tab.updateHotkeyVisibility?.();
   }, 100);
 }
@@ -259,6 +259,30 @@ export class ClaudianSettingTab extends PluginSettingTab {
           .setValue(this.plugin.settings.vaultPathAutocomplete ?? true)
           .onChange(async (value) => {
             this.plugin.settings.vaultPathAutocomplete = value;
+            await this.plugin.saveSettings();
+          })
+      );
+
+    new Setting(container)
+      .setName('Tmux-like controls')
+      .setDesc('Enable tmux-style tab navigation with a prefix key (default Ctrl-B).')
+      .addToggle((toggle) =>
+        toggle
+          .setValue(this.plugin.settings.tmuxMode ?? false)
+          .onChange(async (value) => {
+            this.plugin.settings.tmuxMode = value;
+            await this.plugin.saveSettings();
+          })
+      );
+
+    new Setting(container)
+      .setName('Tmux prefix key')
+      .setDesc('The prefix key for tmux commands (e.g., ctrl-b, ctrl-a).')
+      .addText((text) =>
+        text
+          .setValue(this.plugin.settings.tmuxPrefixKey ?? 'ctrl-b')
+          .onChange(async (value) => {
+            this.plugin.settings.tmuxPrefixKey = value;
             await this.plugin.saveSettings();
           })
       );

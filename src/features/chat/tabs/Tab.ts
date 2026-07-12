@@ -41,6 +41,7 @@ import { SessionUsageService } from '../services/SessionUsageService';
 import { SubagentManager } from '../services/SubagentManager';
 import { ChatState } from '../state/ChatState';
 import { BangBashModeManager as BangBashModeManagerClass } from '../ui/BangBashModeManager';
+import { handleBashKeydown } from '../ui/bashKeybindings';
 import { FileContextManager } from '../ui/FileContext';
 import { ImageContextManager } from '../ui/ImageContext';
 import { createInputToolbar } from '../ui/InputToolbar';
@@ -48,6 +49,7 @@ import { InstructionModeManager as InstructionModeManagerClass } from '../ui/Ins
 import { NavigationSidebar } from '../ui/NavigationSidebar';
 import { StatusPanel } from '../ui/StatusPanel';
 import { autoResizeTextarea } from '../ui/textareaResize';
+import { showTmuxHelp, type TmuxCommandCallbacks, TmuxPrefixHandler } from '../ui/TmuxPrefixHandler';
 import { recalculateUsageForModel } from '../utils/usageInfo';
 import { getVaultPaths as vaultPathsGetVaultPaths } from '../utils/vaultPaths';
 import { getTabProviderId } from './providerResolution';
@@ -524,6 +526,7 @@ export function createTab(options: TabCreateOptions): TabData {
       slashCommandDropdown: null,
       instructionModeManager: null,
       bangBashModeManager: null,
+      tmuxPrefixHandler: null,
       contextUsageMeter: null,
       statusPanel: null,
       navigationSidebar: null,
@@ -1001,6 +1004,7 @@ function initializeInputToolbar(
 export interface InitializeTabUIOptions {
   getProviderCatalogConfig?: () => ProviderCatalogInfo;
   onProviderChanged?: (providerId: ProviderId) => void | Promise<void>;
+  getTmuxCallbacks?: () => TmuxCommandCallbacks;
 }
 
 /**
@@ -1041,6 +1045,19 @@ export function initializeTabUI(
 
   initializeInstructionAndTodo(tab, plugin);
   initializeInputToolbar(tab, plugin, options.getProviderCatalogConfig, options.onProviderChanged);
+
+  // Tmux prefix handler
+  if (plugin.settings.tmuxMode && options.getTmuxCallbacks) {
+    const tmuxIndicatorEl = dom.inputContainerEl.createDiv({
+      cls: 'claudian-tmux-prefix-indicator claudian-hidden',
+    });
+    tab.ui.tmuxPrefixHandler = new TmuxPrefixHandler({
+      enabled: true,
+      prefixKey: plugin.settings.tmuxPrefixKey ?? 'ctrl-b',
+      callbacks: options.getTmuxCallbacks(),
+      indicatorEl: tmuxIndicatorEl,
+    });
+  }
 
   state.callbacks = {
     ...state.callbacks,
@@ -1530,6 +1547,19 @@ export function wireTabInputEvents(tab: TabData, plugin: ClaudianPlugin): void {
       return;
     }
 
+    // Tmux prefix handler takes priority over bash keybindings
+    if (ui.tmuxPrefixHandler?.handlePrefixKey(e)) {
+      return;
+    }
+
+    // Bash-like readline keybindings
+    const tmuxPrefix = plugin.settings.tmuxMode
+      ? `ctrl-${(plugin.settings.tmuxPrefixKey ?? 'b').toLowerCase()}`
+      : undefined;
+    if (handleBashKeydown(e, dom.inputEl, tmuxPrefix)) {
+      return;
+    }
+
     if (sendTabInputMessageFromExplicitEnterShortcut(tab, e)) {
       return;
     }
@@ -1671,6 +1701,8 @@ export async function destroyTab(tab: TabData): Promise<void> {
   tab.ui.instructionModeManager = null;
   tab.ui.bangBashModeManager?.destroy();
   tab.ui.bangBashModeManager = null;
+  tab.ui.tmuxPrefixHandler?.destroy();
+  tab.ui.tmuxPrefixHandler = null;
   tab.services.instructionRefineService?.cancel();
   tab.services.instructionRefineService?.resetConversation();
   tab.services.instructionRefineService = null;

@@ -2157,6 +2157,32 @@ body.theme-light .claudian-message-content pre {
   font-family: var(--font-monospace);
 }
 
+/* Tmux prefix indicator */
+.claudian-tmux-prefix-indicator {
+  position: absolute;
+  top: -28px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 4px 12px;
+  border-radius: 4px;
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  z-index: 100;
+  pointer-events: none;
+}
+
+.claudian-tmux-prefix-active {
+  animation: claudian-tmux-pulse 1s ease-in-out infinite;
+}
+
+@keyframes claudian-tmux-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
 
 /* ============================================
    components/context-footer.css

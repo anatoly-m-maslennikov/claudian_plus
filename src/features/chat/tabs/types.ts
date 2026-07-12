@@ -30,6 +30,7 @@ import type {
 import type { InstructionModeManager } from '../ui/InstructionModeManager';
 import type { NavigationSidebar } from '../ui/NavigationSidebar';
 import type { StatusPanel } from '../ui/StatusPanel';
+import type { TmuxPrefixHandler } from '../ui/TmuxPrefixHandler';
 
 /**
  * Default number of tabs allowed.
@@ -66,6 +67,14 @@ export interface TabManagerViewHost extends Component {
 
   /** Gets view-owned elements that should preserve active tab selection context. */
   getSharedSelectionFocusScopeEls?(): HTMLElement[];
+
+  // Tmux command callbacks (optional — only when tmux mode is enabled)
+  showTmuxRenameTab?(tabId: TabId): void;
+  showTmuxTabsList?(): void;
+  showTmuxSessionsList?(): void;
+  showTmuxFindTab?(): void;
+  showTmuxRenameConversation?(): void;
+  showTmuxMoveTab?(): void;
 }
 
 /**
@@ -128,6 +137,7 @@ export interface TabUIComponents {
   slashCommandDropdown: SlashCommandDropdown | null;
   instructionModeManager: InstructionModeManager | null;
   bangBashModeManager: BangBashModeManager | null;
+  tmuxPrefixHandler: TmuxPrefixHandler | null;
   contextUsageMeter: ContextUsageMeter | null;
   statusPanel: StatusPanel | null;
   navigationSidebar: NavigationSidebar | null;
