@@ -378,7 +378,7 @@ export class SlashCommandDropdown {
 
         const nameEl = itemEl.createSpan({ cls: 'claudian-slash-name' });
         if (item.isVaultPath) {
-          nameEl.setText(item.name);
+          nameEl.setText(`/${item.name}`);
           nameEl.addClass('claudian-slash-vault-path');
         } else {
           nameEl.setText(`${item.displayPrefix}${item.name}`);
@@ -463,12 +463,19 @@ export class SlashCommandDropdown {
     const afterCursor = text.substring(this.getCursorPosition());
 
     if (selected.isVaultPath) {
-      // Vault path: insert the path text replacing the trigger + search text
-      const replacement = selected.name;
+      // Vault path: preserve leading /, insert path after it
+      const replacement = `/${selected.name}`;
       this.setInputValue(beforeTrigger + replacement + afterCursor);
       this.setCursorPosition(beforeTrigger.length + replacement.length);
-      this.hide();
       this.inputEl.focus();
+
+      // If selected a folder (ends with /), re-trigger dropdown to show its children
+      if (selected.name.endsWith('/')) {
+        // Keep the trigger active — re-evaluate the input to show the next level
+        this.handleInputChange();
+      } else {
+        this.hide();
+      }
       return;
     }
 

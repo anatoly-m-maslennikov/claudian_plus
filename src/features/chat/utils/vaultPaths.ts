@@ -1,26 +1,55 @@
-import type { App } from 'obsidian';
+import { type App, TFolder } from 'obsidian';
 
 /**
- * Get vault paths matching the search string.
- * Returns both file paths and intermediate folder paths.
+ * Get immediate children of the path typed so far.
+ * Non-recursive: only the next level down.
+ *
+ * - "" or "/" → root children
+ * - "00_META" → root children starting with "00_META"
+ * - "00_META/" → children of 00_META folder
+ * - "00_META/00" → children of 00_META starting with "00"
  */
 export async function getVaultPaths(app: App, searchPath: string): Promise<string[]> {
-  const normalizedSearch = searchPath.replace(/^\//, '').toLowerCase();
-  const files = app.vault.getFiles();
-  const results = new Set<string>();
+  const cleaned = searchPath.replace(/^\//, '');
+  const filterLower = cleaned.toLowerCase();
 
-  for (const file of files) {
-    const path = file.path;
-    if (normalizedSearch && !path.toLowerCase().includes(normalizedSearch)) continue;
-    results.add(path);
-    const parts = path.split('/');
-    for (let i = 1; i < parts.length; i++) {
-      const folder = parts.slice(0, i).join('/');
-      if (!normalizedSearch || folder.toLowerCase().includes(normalizedSearch)) {
-        results.add(folder + '/');
-      }
+  // Split into folder path + filter prefix
+  let folderPath: string;
+  let nameFilter: string;
+
+  if (cleaned.endsWith('/')) {
+    folderPath = cleaned.slice(0, -1);
+    nameFilter = '';
+  } else {
+    const lastSlash = cleaned.lastIndexOf('/');
+    if (lastSlash === -1) {
+      folderPath = '';
+      nameFilter = cleaned;
+    } else {
+      folderPath = cleaned.slice(0, lastSlash);
+      nameFilter = cleaned.slice(lastSlash + 1);
     }
   }
 
-  return Array.from(results).sort().slice(0, 50);
+  const folder = folderPath === ''
+    ? app.vault.getRoot()
+    : app.vault.getAbstractFileByPath(folderPath);
+
+  if (!(folder instanceof TFolder)) {
+    return [];
+  }
+
+  const nameFilterLower = nameFilter.toLowerCase();
+  const results: string[] = [];
+
+  for (const child of folder.children) {
+    if (nameFilterLower && !child.name.toLowerCase().startsWith(nameFilterLower)) {
+      continue;
+    }
+    const childPath = folderPath === '' ? child.name : `${folderPath}/${child.name}`;
+    const isFolder = child instanceof TFolder;
+    results.push(isFolder ? `${childPath}/` : childPath);
+  }
+
+  return results.sort().slice(0, 50);
 }
