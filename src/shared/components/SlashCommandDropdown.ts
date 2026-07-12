@@ -116,6 +116,8 @@ export class SlashCommandDropdown {
     const vaultPathTriggerChars = this.vaultPathAutocomplete ? ['/'] : [];
 
     // Scan backward from cursor for the nearest valid trigger char.
+    // Valid trigger: at position 0, or preceded by whitespace.
+    // For vault paths, '/' mid-path is part of the search text, not a trigger.
     let triggerIndex = -1;
     let triggerChar = '';
     let isVaultPath = false;
@@ -133,11 +135,14 @@ export class SlashCommandDropdown {
       }
       if (vaultPathTriggerChars.includes(ch)) {
         if (i === 0 || /\s/.test(textBeforeCursor.charAt(i - 1))) {
+          // Found the trigger / at start of path
           triggerIndex = i;
           triggerChar = ch;
           isVaultPath = true;
+          break;
         }
-        break;
+        // Mid-path / — keep scanning backward to find the trigger
+        continue;
       }
     }
 
