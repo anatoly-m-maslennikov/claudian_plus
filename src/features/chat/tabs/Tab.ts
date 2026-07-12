@@ -49,6 +49,7 @@ import { NavigationSidebar } from '../ui/NavigationSidebar';
 import { StatusPanel } from '../ui/StatusPanel';
 import { autoResizeTextarea } from '../ui/textareaResize';
 import { recalculateUsageForModel } from '../utils/usageInfo';
+import { getVaultPaths as vaultPathsGetVaultPaths } from '../utils/vaultPaths';
 import { getTabProviderId } from './providerResolution';
 import type { TabData, TabDOMElements, TabId, TabManagerViewHost, TabProviderContext } from './types';
 import { generateTabId } from './types';
@@ -300,6 +301,11 @@ function syncSlashCommandDropdownForProvider(
   }
 
   dropdown.setHiddenCommands(getTabHiddenCommands(tab, plugin, conversation));
+
+  // Update vault path autocomplete setting (may have changed since tab creation)
+  const getVaultPaths = (searchPath: string): Promise<string[]> =>
+    vaultPathsGetVaultPaths(plugin.app, searchPath);
+  dropdown.setVaultPathAutocomplete(plugin.settings.vaultPathAutocomplete ?? true, getVaultPaths);
 }
 
 async function updateTabProviderSettings(
@@ -723,10 +729,14 @@ function initializeContextManagers(tab: TabData, plugin: ClaudianPlugin): void {
 
 function initializeSlashCommands(
   tab: TabData,
+  plugin: ClaudianPlugin,
   getHiddenCommands?: () => Set<string>,
   catalogInfo?: { config: ProviderCommandDropdownConfig; getEntries: () => Promise<ProviderCommandEntry[]> } | null,
 ): void {
   const { dom } = tab;
+
+  const getVaultPaths = (searchPath: string): Promise<string[]> =>
+    vaultPathsGetVaultPaths(plugin.app, searchPath);
 
   tab.ui.slashCommandDropdown = new SlashCommandDropdown(
     dom.inputContainerEl,
@@ -739,6 +749,8 @@ function initializeSlashCommands(
       hiddenCommands: getHiddenCommands?.() ?? new Set(),
       providerConfig: catalogInfo?.config,
       getProviderEntries: catalogInfo?.getEntries,
+      vaultPathAutocomplete: plugin.settings.vaultPathAutocomplete ?? true,
+      getVaultPaths,
     }
   );
 }
@@ -1015,6 +1027,7 @@ export function initializeTabUI(
   const catalogInfo = options.getProviderCatalogConfig?.() ?? null;
   initializeSlashCommands(
     tab,
+    plugin,
     () => getTabHiddenCommands(tab, plugin),
     catalogInfo,
   );

@@ -83,6 +83,8 @@ const createMockSlashCommandDropdown = () => ({
   resetSdkSkillsCache: jest.fn(),
   setHiddenCommands: jest.fn(),
   setEnabled: jest.fn(),
+  setProviderCatalog: jest.fn(),
+  setVaultPathAutocomplete: jest.fn(),
   destroy: jest.fn(),
 });
 
@@ -3859,6 +3861,7 @@ describe('Tab - Blank Tab Draft Model Change', () => {
     // Mock setProviderCatalog on the dropdown
     const setProviderCatalogSpy = jest.fn();
     tab.ui.slashCommandDropdown!.setProviderCatalog = setProviderCatalogSpy;
+    tab.ui.slashCommandDropdown!.setVaultPathAutocomplete = jest.fn();
 
     const toolbarModule = jest.requireMock('@/features/chat/ui/InputToolbar') as {
       createInputToolbar: jest.Mock;
@@ -3952,6 +3955,7 @@ describe('Tab - Blank Tab Draft Model Change', () => {
     const setHiddenCommandsSpy = jest.fn();
     tab.ui.slashCommandDropdown!.setProviderCatalog = setProviderCatalogSpy;
     tab.ui.slashCommandDropdown!.setHiddenCommands = setHiddenCommandsSpy;
+    tab.ui.slashCommandDropdown!.setVaultPathAutocomplete = jest.fn();
 
     const toolbarModule = jest.requireMock('@/features/chat/ui/InputToolbar') as {
       createInputToolbar: jest.Mock;
@@ -4189,6 +4193,7 @@ describe('Tab - History Bind Without Runtime', () => {
     const setHiddenCommandsSpy = jest.fn();
     tab.ui.slashCommandDropdown!.setProviderCatalog = setProviderCatalogSpy;
     tab.ui.slashCommandDropdown!.setHiddenCommands = setHiddenCommandsSpy;
+    tab.ui.slashCommandDropdown!.setVaultPathAutocomplete = jest.fn();
 
     const convCtrlModule = jest.requireMock('@/features/chat/controllers/ConversationController') as {
       ConversationController: jest.Mock;

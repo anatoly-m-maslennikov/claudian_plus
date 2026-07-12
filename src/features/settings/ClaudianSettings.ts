@@ -252,6 +252,18 @@ export class ClaudianSettingTab extends PluginSettingTab {
       );
 
     new Setting(container)
+      .setName('Vault path autocomplete')
+      .setDesc('When ON, / triggers vault path autocomplete and $ triggers commands/skills. When OFF, / triggers commands/skills (default behavior).')
+      .addToggle((toggle) =>
+        toggle
+          .setValue(this.plugin.settings.vaultPathAutocomplete ?? true)
+          .onChange(async (value) => {
+            this.plugin.settings.vaultPathAutocomplete = value;
+            await this.plugin.saveSettings();
+          })
+      );
+
+    new Setting(container)
       .setName(t('settings.chatViewPlacement.name'))
       .setDesc(t('settings.chatViewPlacement.desc'))
       .addDropdown((dropdown) => {

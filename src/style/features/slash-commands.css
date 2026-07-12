@@ -76,6 +76,11 @@
   font-size: 13px;
 }
 
+.claudian-slash-vault-path {
+  color: var(--text-accent);
+  word-break: break-all;
+}
+
 /* Scrollbar */
 .claudian-slash-dropdown::-webkit-scrollbar {
   width: 6px;

@@ -14,6 +14,7 @@ interface DropdownItem {
   isBuiltIn: boolean;
   slashCommand?: SlashCommand;
   providerEntry?: ProviderCommandEntry;
+  isVaultPath?: boolean;
 }
 
 export interface SlashCommandDropdownCallbacks {
@@ -26,6 +27,8 @@ export interface SlashCommandDropdownOptions {
   hiddenCommands?: Set<string>;
   providerConfig?: ProviderCommandDropdownConfig;
   getProviderEntries?: () => Promise<ProviderCommandEntry[]>;
+  vaultPathAutocomplete?: boolean;
+  getVaultPaths?: (searchPath: string) => Promise<string[]>;
 }
 
 export class SlashCommandDropdown {
@@ -46,6 +49,8 @@ export class SlashCommandDropdown {
   private getProviderEntries: (() => Promise<ProviderCommandEntry[]>) | null;
   private cachedProviderEntries: ProviderCommandEntry[] = [];
   private providerEntriesFetched = false;
+  private vaultPathAutocomplete: boolean;
+  private getVaultPaths: ((searchPath: string) => Promise<string[]>) | null;
 
   private requestId = 0;
 
@@ -62,6 +67,8 @@ export class SlashCommandDropdown {
     this.hiddenCommands = options.hiddenCommands ?? new Set();
     this.providerConfig = options.providerConfig ?? null;
     this.getProviderEntries = options.getProviderEntries ?? null;
+    this.vaultPathAutocomplete = options.vaultPathAutocomplete ?? false;
+    this.getVaultPaths = options.getVaultPaths ?? null;
 
     this.onInput = () => this.handleInputChange();
     this.inputEl.addEventListener('input', this.onInput);
@@ -89,26 +96,46 @@ export class SlashCommandDropdown {
     this.requestId = 0;
   }
 
+  setVaultPathAutocomplete(enabled: boolean, getVaultPaths: (searchPath: string) => Promise<string[]>): void {
+    this.vaultPathAutocomplete = enabled;
+    this.getVaultPaths = getVaultPaths;
+  }
+
   handleInputChange(): void {
     if (!this.enabled) return;
 
     const text = this.getInputValue();
     const cursorPos = this.getCursorPosition();
     const textBeforeCursor = text.substring(0, cursorPos);
-    const triggerChars = this.providerConfig?.triggerChars ?? ['/'];
+
+    // When vaultPathAutocomplete is ON, '/' is reserved for vault paths.
+    // Commands use '$' instead. When OFF, providers keep their original trigger chars.
+    const commandTriggerChars = this.vaultPathAutocomplete
+      ? ['$']
+      : (this.providerConfig?.triggerChars ?? ['/']);
+    const vaultPathTriggerChars = this.vaultPathAutocomplete ? ['/'] : [];
 
     // Scan backward from cursor for the nearest valid trigger char.
-    // Valid trigger: at position 0, or preceded by whitespace.
     let triggerIndex = -1;
     let triggerChar = '';
+    let isVaultPath = false;
 
     for (let i = cursorPos - 1; i >= 0; i--) {
       const ch = textBeforeCursor.charAt(i);
       if (/\s/.test(ch)) break;
-      if (triggerChars.includes(ch)) {
+      if (commandTriggerChars.includes(ch)) {
         if (i === 0 || /\s/.test(textBeforeCursor.charAt(i - 1))) {
           triggerIndex = i;
           triggerChar = ch;
+          isVaultPath = false;
+        }
+        break;
+      }
+      if (vaultPathTriggerChars.includes(ch)) {
+        if (i === 0 || /\s/.test(textBeforeCursor.charAt(i - 1))) {
+          triggerIndex = i;
+          triggerChar = ch;
+          isVaultPath = true;
         }
         break;
       }
@@ -129,7 +156,7 @@ export class SlashCommandDropdown {
     this.triggerStartIndex = triggerIndex;
     this.activeTriggerChar = triggerChar;
     const isAtPosition0 = triggerIndex === 0;
-    void this.showDropdown(searchText, isAtPosition0);
+    void this.showDropdown(searchText, isAtPosition0, isVaultPath);
   }
 
   handleKeydown(e: KeyboardEvent): boolean {
@@ -203,15 +230,37 @@ export class SlashCommandDropdown {
     this.inputEl.selectionEnd = pos;
   }
 
-  private async showDropdown(searchText: string, isAtPosition0 = true): Promise<void> {
+  private async showDropdown(searchText: string, isAtPosition0 = true, isVaultPath = false): Promise<void> {
     const currentRequest = ++this.requestId;
     const searchLower = searchText.toLowerCase();
+
+    if (isVaultPath && this.getVaultPaths) {
+      const paths = await this.getVaultPaths(searchText);
+      if (currentRequest !== this.requestId) return;
+
+      this.filteredItems = paths.slice(0, 50).map(path => ({
+        name: path,
+        content: path,
+        displayPrefix: '',
+        insertPrefix: '',
+        isBuiltIn: false,
+        isVaultPath: true,
+      }));
+
+      this.selectedIndex = 0;
+      this.render();
+      return;
+    }
 
     await this.fetchProviderEntries(currentRequest);
 
     if (currentRequest !== this.requestId) return;
 
-    const includeBuiltIns = isAtPosition0 && this.activeTriggerChar === '/';
+    const includeBuiltIns = isAtPosition0 && (
+      this.vaultPathAutocomplete
+        ? this.activeTriggerChar === '$'
+        : this.activeTriggerChar === '/'
+    );
     const allItems = this.buildItemList(includeBuiltIns);
 
     this.filteredItems = allItems
@@ -317,7 +366,7 @@ export class SlashCommandDropdown {
 
     if (this.filteredItems.length === 0) {
       const emptyEl = this.dropdownEl.createDiv({ cls: 'claudian-slash-empty' });
-      emptyEl.setText('No matching commands');
+      emptyEl.setText('No matching items');
     } else {
       for (let i = 0; i < this.filteredItems.length; i++) {
         const item = this.filteredItems[i];
@@ -328,7 +377,12 @@ export class SlashCommandDropdown {
         }
 
         const nameEl = itemEl.createSpan({ cls: 'claudian-slash-name' });
-        nameEl.setText(`${item.displayPrefix}${item.name}`);
+        if (item.isVaultPath) {
+          nameEl.setText(item.name);
+          nameEl.addClass('claudian-slash-vault-path');
+        } else {
+          nameEl.setText(`${item.displayPrefix}${item.name}`);
+        }
 
         if (item.argumentHint) {
           const hintEl = itemEl.createSpan({ cls: 'claudian-slash-hint' });
@@ -407,6 +461,17 @@ export class SlashCommandDropdown {
     const text = this.getInputValue();
     const beforeTrigger = text.substring(0, this.triggerStartIndex);
     const afterCursor = text.substring(this.getCursorPosition());
+
+    if (selected.isVaultPath) {
+      // Vault path: insert the path text replacing the trigger + search text
+      const replacement = selected.name;
+      this.setInputValue(beforeTrigger + replacement + afterCursor);
+      this.setCursorPosition(beforeTrigger.length + replacement.length);
+      this.hide();
+      this.inputEl.focus();
+      return;
+    }
+
     const replacement = `${selected.insertPrefix}${selected.name} `;
 
     this.setInputValue(beforeTrigger + replacement + afterCursor);

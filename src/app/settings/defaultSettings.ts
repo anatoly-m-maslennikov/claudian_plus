@@ -46,6 +46,7 @@ export const DEFAULT_CLAUDIAN_SETTINGS: ClaudianSettings = {
 
   maxTabs: 3,
   showTabTitles: true,
+  vaultPathAutocomplete: true,
   enableAutoScroll: true,
   deferMathRenderingDuringStreaming: true,
   expandFileEditsByDefault: false,
