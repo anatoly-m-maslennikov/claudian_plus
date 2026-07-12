@@ -41,7 +41,7 @@ export async function getVaultPaths(app: App, searchPath: string): Promise<strin
   const results: string[] = [];
 
   for (const child of folder.children) {
-    if (filterLower && !child.name.toLowerCase().startsWith(filterLower)) {
+    if (filterLower && !child.name.toLowerCase().includes(filterLower)) {
       continue;
     }
     const childPath = folderPath === '' ? child.name : `${folderPath}/${child.name}`;
