@@ -165,7 +165,17 @@ export class SlashCommandDropdown {
   }
 
   handleKeydown(e: KeyboardEvent): boolean {
-    if (!this.enabled || !this.isVisible()) return false;
+    if (!this.enabled) return false;
+
+    // Handle Escape even when dropdown not yet visible (cancels pending async)
+    if (e.key === 'Escape') {
+      if (!this.isVisible() && this.triggerStartIndex === -1) return false;
+      e.preventDefault();
+      this.hide();
+      return true;
+    }
+
+    if (!this.isVisible()) return false;
 
     switch (e.key) {
       case 'ArrowDown':
