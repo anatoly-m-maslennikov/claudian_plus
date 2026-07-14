@@ -10,18 +10,35 @@ import { getCodexModelOptions } from '../modelOptions';
 import { isCodexModelSelectionId, toCodexRuntimeModelId } from '../modelSelection';
 import { applyCodexModelDefaults } from '../settings';
 import {
+  CODEX_LUNA_MODEL,
+  CODEX_SOL_MODEL,
+  CODEX_TERRA_MODEL,
   DEFAULT_CODEX_MODEL_SET,
   DEFAULT_CODEX_PRIMARY_MODEL,
   FAST_TIER_CODEX_DESCRIPTION,
-  FAST_TIER_CODEX_MODEL,
+  supportsCodexFastTier,
 } from '../types/models';
 
-const EFFORT_LEVELS: ProviderReasoningOption[] = [
+const BASE_EFFORT_LEVELS: ProviderReasoningOption[] = [
   { value: 'low', label: 'Low' },
   { value: 'medium', label: 'Medium' },
   { value: 'high', label: 'High' },
   { value: 'xhigh', label: 'XHigh' },
 ];
+
+const MAX_EFFORT_LEVEL: ProviderReasoningOption = { value: 'max', label: 'Max' };
+const ULTRA_EFFORT_LEVEL: ProviderReasoningOption = { value: 'ultra', label: 'Ultra' };
+
+function getCodexReasoningOptions(model: string): ProviderReasoningOption[] {
+  const runtimeModel = toCodexRuntimeModelId(model);
+  if (runtimeModel === CODEX_SOL_MODEL || runtimeModel === CODEX_TERRA_MODEL) {
+    return [...BASE_EFFORT_LEVELS, MAX_EFFORT_LEVEL, ULTRA_EFFORT_LEVEL];
+  }
+  if (runtimeModel === CODEX_LUNA_MODEL) {
+    return [...BASE_EFFORT_LEVELS, MAX_EFFORT_LEVEL];
+  }
+  return [...BASE_EFFORT_LEVELS];
+}
 
 const CODEX_PERMISSION_MODE_TOGGLE: ProviderPermissionModeToggleConfig = {
   inactiveValue: 'normal',
@@ -70,12 +87,12 @@ export const codexChatUIConfig: ProviderChatUIConfig = {
     return true;
   },
 
-  getReasoningOptions(_model: string, _settings: Record<string, unknown>): ProviderReasoningOption[] {
-    return [...EFFORT_LEVELS];
+  getReasoningOptions(model: string, _settings: Record<string, unknown>): ProviderReasoningOption[] {
+    return getCodexReasoningOptions(model);
   },
 
-  getDefaultReasoningValue(_model: string, _settings: Record<string, unknown>): string {
-    return 'medium';
+  getDefaultReasoningValue(model: string, _settings: Record<string, unknown>): string {
+    return toCodexRuntimeModelId(model) === CODEX_SOL_MODEL ? 'low' : 'medium';
   },
 
   getContextWindowSize(): number {
@@ -119,7 +136,10 @@ export const codexChatUIConfig: ProviderChatUIConfig = {
   },
 
   getServiceTierToggle(settings): ProviderServiceTierToggleConfig | null {
-    return settings.model === FAST_TIER_CODEX_MODEL ? CODEX_SERVICE_TIER_TOGGLE : null;
+    const model = typeof settings.model === 'string' ? settings.model : '';
+    return supportsCodexFastTier(toCodexRuntimeModelId(model))
+      ? CODEX_SERVICE_TIER_TOGGLE
+      : null;
   },
 
   getProviderIcon() {

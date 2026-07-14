@@ -7,7 +7,12 @@ import * as path from 'path';
 import type { PreparedChatTurn } from '@/core/runtime/types';
 import type { StreamChunk } from '@/core/types/chat';
 import { encodeCodexModelSelectionId } from '@/providers/codex/modelSelection';
-import { CODEX_SPARK_MODEL, DEFAULT_CODEX_PRIMARY_MODEL } from '@/providers/codex/types/models';
+import {
+  CODEX_LUNA_MODEL,
+  CODEX_SPARK_MODEL,
+  CODEX_TERRA_MODEL,
+  DEFAULT_CODEX_PRIMARY_MODEL,
+} from '@/providers/codex/types/models';
 
 // ---------------------------------------------------------------------------
 // Mocks
@@ -1428,6 +1433,37 @@ describe('CodexChatRuntime', () => {
 
       rt.cleanup();
     });
+
+    it.each([CODEX_TERRA_MODEL, CODEX_LUNA_MODEL])(
+      'sends serviceTier fast for GPT-5.6 variant %s',
+      async (model) => {
+        const plugin = createMockPlugin({ model, serviceTier: 'fast' });
+        const rt = new CodexChatRuntime(plugin);
+
+        await collectChunks(rt.query(createTurn()));
+
+        expect(findCall('thread/start')[1].serviceTier).toBe('fast');
+        expect(findCall('turn/start')[1].serviceTier).toBe('fast');
+
+        rt.cleanup();
+      },
+    );
+
+    it.each(['max', 'ultra'])(
+      'passes GPT-5.6 reasoning effort %s to the app server',
+      async (effortLevel) => {
+        const plugin = createMockPlugin({ effortLevel });
+        const rt = new CodexChatRuntime(plugin);
+
+        await collectChunks(rt.query(createTurn()));
+
+        const turnStartCall = findCall('turn/start');
+        expect(turnStartCall[1].effort).toBe(effortLevel);
+        expect(turnStartCall[1].collaborationMode.settings.reasoning_effort).toBe(effortLevel);
+
+        rt.cleanup();
+      },
+    );
 
     it('sends serviceTier null on turn/start when fast mode is disabled', async () => {
       const plugin = createMockPlugin({ serviceTier: 'default' });

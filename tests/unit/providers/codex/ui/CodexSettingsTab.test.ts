@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 
 import { DEFAULT_CODEX_PROVIDER_SETTINGS } from '@/providers/codex/settings';
+import { DEFAULT_CODEX_PRIMARY_MODEL } from '@/providers/codex/types/models';
 import { codexSettingsTabRenderer } from '@/providers/codex/ui/CodexSettingsTab';
 
 const mockGetHostnameKey = jest.fn(() => 'host-a');
@@ -542,7 +543,7 @@ describe('CodexSettingsTab', () => {
     await customModelsTextArea.trigger('blur');
 
     expect(plugin.settings.providerConfigs.codex.customModels).toBe('different-custom-model');
-    expect(plugin.settings.model).toBe('gpt-5.4-mini');
+    expect(plugin.settings.model).toBe(DEFAULT_CODEX_PRIMARY_MODEL);
     expect(plugin.settings.titleGenerationModel).toBe('');
     expect(mockSaveSettings).toHaveBeenCalledTimes(1);
     expect(context.refreshModelSelectors).toHaveBeenCalledTimes(1);
@@ -571,7 +572,7 @@ describe('CodexSettingsTab', () => {
     expect(plugin.settings.model).toBe('haiku');
     expect(plugin.settings.savedProviderModel).toEqual({
       claude: 'haiku',
-      codex: 'gpt-5.4-mini',
+      codex: DEFAULT_CODEX_PRIMARY_MODEL,
     });
     expect(mockSaveSettings).toHaveBeenCalledTimes(1);
   });

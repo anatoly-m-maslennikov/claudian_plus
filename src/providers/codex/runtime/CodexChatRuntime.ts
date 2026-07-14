@@ -48,7 +48,11 @@ import {
   findPreferredCodexSkillByName,
 } from '../skills/CodexSkillListingService';
 import { type CodexProviderState, getCodexState } from '../types';
-import { DEFAULT_CODEX_PRIMARY_MODEL, FAST_TIER_CODEX_MODEL, formatCodexModelLabel } from '../types/models';
+import {
+  DEFAULT_CODEX_PRIMARY_MODEL,
+  formatCodexModelLabel,
+  supportsCodexFastTier,
+} from '../types/models';
 import { CodexAppServerProcess } from './CodexAppServerProcess';
 import {
   initializeCodexAppServerTransport,
@@ -95,7 +99,7 @@ function resolveCodexSandboxConfig(
 }
 
 function resolveCodexServiceTier(serviceTier: unknown, model: string | undefined): string | null {
-  if (model !== FAST_TIER_CODEX_MODEL) {
+  if (!supportsCodexFastTier(model)) {
     return null;
   }
   return serviceTier === 'fast' ? 'fast' : null;
@@ -106,6 +110,8 @@ const EFFORT_MAP: Record<string, string> = {
   medium: 'medium',
   high: 'high',
   xhigh: 'xhigh',
+  max: 'max',
+  ultra: 'ultra',
 };
 
 export class CodexChatRuntime implements ChatRuntime {
